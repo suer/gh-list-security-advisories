@@ -46,7 +46,8 @@ func (cf *ColorFormatter) FormatSummary(ai *AdvisoryItem) string {
 }
 
 func (cf *ColorFormatter) FormatRepositoryName(name string) string {
-	return aurora.Bold(name).String()
+	url := fmt.Sprintf("https://github.com/%s", name)
+	return aurora.Bold(name).Hyperlink(url).String()
 }
 
 type NoColorFormatter struct{}
