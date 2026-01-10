@@ -65,6 +65,18 @@ func shouldExcludeRepository(repoFullName string, excludes *[]string) bool {
 	return false
 }
 
+func shouldIncludeSeverity(severity string, severities *[]string) bool {
+	if len(*severities) == 0 {
+		return true
+	}
+	for _, s := range *severities {
+		if strings.EqualFold(s, severity) {
+			return true
+		}
+	}
+	return false
+}
+
 func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, error) {
 	client, err := api.DefaultGraphQLClient()
 	if err != nil {
@@ -110,6 +122,9 @@ func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, err
 
 		advisoryItems := []AdvisoryItem{}
 		for _, alert := range repo.VulnerabilityAlerts.Nodes {
+			if !shouldIncludeSeverity(alert.SecurityAdvisory.Severity, opts.Severities) {
+				continue
+			}
 			advisoryItems = append(advisoryItems, AdvisoryItem{
 				GhsaId:         alert.SecurityAdvisory.GhsaId,
 				Summary:        alert.SecurityAdvisory.Summary,
@@ -117,6 +132,10 @@ func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, err
 				CreatedAt:      alert.CreatedAt,
 				RepositoryName: repoFullName,
 			})
+		}
+
+		if len(advisoryItems) == 0 {
+			continue
 		}
 
 		repoMap[repoFullName] = RepositoryItem{

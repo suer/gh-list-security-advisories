@@ -38,6 +38,7 @@ This will display all security advisories for all repositories owned by the spec
 
 - `-e, --exclude`: Exclude repositories containing the specified string (can be used multiple times)
 - `-l, --limit`: Max number of vulnerability alerts to fetch per repository (default: 100)
+- `-s, --severity`: Filter by severity (CRITICAL, HIGH, MODERATE, LOW) (can be used multiple times)
 - `--no-color`: Disable color output
 - `-v, --verbose`: Verbose output
 - `-h, --help`: Help for the command
@@ -65,6 +66,19 @@ gh list-security-advisories octocat -l 10
 
 # Combine with other options
 gh list-security-advisories octocat -l 50 -e test
+```
+
+Filter by severity:
+
+```bash
+# Show only CRITICAL advisories
+gh list-security-advisories octocat -s CRITICAL
+
+# Show HIGH and CRITICAL advisories
+gh list-security-advisories octocat -s HIGH -s CRITICAL
+
+# Combine with other options
+gh list-security-advisories octocat -s CRITICAL -s HIGH -e test
 ```
 
 ## Output Format
