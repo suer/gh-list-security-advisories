@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -90,6 +91,8 @@ func fetchSecurityAdvisories(owner string) ([]RepositoryItem, error) {
 			continue
 		}
 
+		repoFullName := fmt.Sprintf("%s/%s", owner, repo.Name)
+
 		advisoryItems := []AdvisoryItem{}
 		for _, alert := range repo.VulnerabilityAlerts.Nodes {
 			advisoryItems = append(advisoryItems, AdvisoryItem{
@@ -97,12 +100,12 @@ func fetchSecurityAdvisories(owner string) ([]RepositoryItem, error) {
 				Summary:        alert.SecurityAdvisory.Summary,
 				Severity:       alert.SecurityAdvisory.Severity,
 				CreatedAt:      alert.CreatedAt,
-				RepositoryName: repo.Name,
+				RepositoryName: repoFullName,
 			})
 		}
 
-		repoMap[repo.Name] = RepositoryItem{
-			Name:          repo.Name,
+		repoMap[repoFullName] = RepositoryItem{
+			Name:          repoFullName,
 			AdvisoryItems: advisoryItems,
 		}
 	}

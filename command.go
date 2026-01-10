@@ -1,6 +1,8 @@
 package main
 
 import (
+	"sync"
+
 	"github.com/spf13/cobra"
 )
 
@@ -12,13 +14,13 @@ type Options struct {
 func rootCmd() *cobra.Command {
 	opts := &Options{}
 	cmd := &cobra.Command{
-		Use:           "gh list-security-advisories <owner>",
-		Short:         "List security advisories for an owner's repositories",
-		Args:          cobra.ExactArgs(1),
+		Use:           "gh list-security-advisories <owner> [<owner>...]",
+		Short:         "List security advisories for one or more owners' repositories",
+		Args:          cobra.MinimumNArgs(1),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			owner := args[0]
-			return run(owner, opts)
+			owners := args
+			return run(owners, opts)
 		},
 	}
 
@@ -28,13 +30,38 @@ func rootCmd() *cobra.Command {
 	return cmd
 }
 
-func run(owner string, opts *Options) error {
-	repositories, err := fetchSecurityAdvisories(owner)
-	if err != nil {
-		return err
+func run(owners []string, opts *Options) error {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var allRepositories []RepositoryItem
+	var firstError error
+
+	for _, owner := range owners {
+		wg.Add(1)
+		go func(owner string) {
+			defer wg.Done()
+
+			repositories, err := fetchSecurityAdvisories(owner)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil && firstError == nil {
+				firstError = err
+				return
+			}
+
+			allRepositories = append(allRepositories, repositories...)
+		}(owner)
 	}
 
-	printResult(repositories, opts)
+	wg.Wait()
+
+	if firstError != nil {
+		return firstError
+	}
+
+	printResult(allRepositories, opts)
 
 	return nil
 }

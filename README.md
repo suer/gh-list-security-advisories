@@ -17,16 +17,22 @@ gh extension upgrade suer/gh-list-security-advisories
 ## Usage
 
 ```bash
-gh list-security-advisories <owner>
+gh list-security-advisories <owner> [<owner>...]
 ```
 
-For example:
+For example, for a single owner:
 
 ```bash
 gh list-security-advisories octocat
 ```
 
-This will display all security advisories for all repositories owned by `octocat`.
+For multiple owners:
+
+```bash
+gh list-security-advisories octocat github
+```
+
+This will display all security advisories for all repositories owned by the specified owner(s). When multiple owners are specified, they are processed in parallel for faster results.
 
 ### Flags
 
