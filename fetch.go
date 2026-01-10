@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -25,7 +26,7 @@ type Repository struct {
 	Name                string
 	VulnerabilityAlerts struct {
 		Nodes []VulnerabilityAlert
-	} `graphql:"vulnerabilityAlerts(first: 100, states: OPEN)"`
+	} `graphql:"vulnerabilityAlerts(first: $alertLimit, states: OPEN)"`
 }
 
 type RepositoryConnection struct {
@@ -55,7 +56,16 @@ type AdvisoryItem struct {
 	RepositoryName string
 }
 
-func fetchSecurityAdvisories(owner string) ([]RepositoryItem, error) {
+func shouldExcludeRepository(repoFullName string, excludes *[]string) bool {
+	for _, exclude := range *excludes {
+		if strings.Contains(repoFullName, exclude) {
+			return true
+		}
+	}
+	return false
+}
+
+func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, error) {
 	client, err := api.DefaultGraphQLClient()
 	if err != nil {
 		return []RepositoryItem{}, err
@@ -67,8 +77,9 @@ func fetchSecurityAdvisories(owner string) ([]RepositoryItem, error) {
 	for {
 		var q query
 		variables := map[string]interface{}{
-			"owner":  graphql.String(owner),
-			"cursor": cursor,
+			"owner":      graphql.String(owner),
+			"cursor":     cursor,
+			"alertLimit": graphql.Int(opts.Limit),
 		}
 
 		err = client.Query("GetSecurityAdvisories", &q, variables)
@@ -92,6 +103,10 @@ func fetchSecurityAdvisories(owner string) ([]RepositoryItem, error) {
 		}
 
 		repoFullName := fmt.Sprintf("%s/%s", owner, repo.Name)
+
+		if shouldExcludeRepository(repoFullName, opts.Excludes) {
+			continue
+		}
 
 		advisoryItems := []AdvisoryItem{}
 		for _, alert := range repo.VulnerabilityAlerts.Nodes {

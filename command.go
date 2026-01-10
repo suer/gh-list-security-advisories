@@ -7,12 +7,14 @@ import (
 )
 
 type Options struct {
-	NoColor bool
-	Verbose bool
+	NoColor  bool
+	Verbose  bool
+	Excludes *[]string
+	Limit    int
 }
 
 func rootCmd() *cobra.Command {
-	opts := &Options{}
+	opts := &Options{Excludes: &[]string{}}
 	cmd := &cobra.Command{
 		Use:           "gh list-security-advisories <owner> [<owner>...]",
 		Short:         "List security advisories for one or more owners' repositories",
@@ -24,6 +26,8 @@ func rootCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringArrayVarP(opts.Excludes, "exclude", "e", []string{}, "exclude repositories")
+	cmd.Flags().IntVarP(&opts.Limit, "limit", "l", 100, "Max number of vulnerability alerts to fetch per repository")
 	cmd.Flags().BoolVar(&opts.NoColor, "no-color", false, "disable color output")
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", false, "verbose output")
 
@@ -41,7 +45,7 @@ func run(owners []string, opts *Options) error {
 		go func(owner string) {
 			defer wg.Done()
 
-			repositories, err := fetchSecurityAdvisories(owner)
+			repositories, err := fetchSecurityAdvisories(owner, opts)
 
 			mu.Lock()
 			defer mu.Unlock()

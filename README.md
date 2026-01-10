@@ -36,9 +36,36 @@ This will display all security advisories for all repositories owned by the spec
 
 ### Flags
 
+- `-e, --exclude`: Exclude repositories containing the specified string (can be used multiple times)
+- `-l, --limit`: Max number of vulnerability alerts to fetch per repository (default: 100)
 - `--no-color`: Disable color output
 - `-v, --verbose`: Verbose output
 - `-h, --help`: Help for the command
+
+### Examples
+
+Exclude specific repositories:
+
+```bash
+# Exclude repositories containing "test" in their name
+gh list-security-advisories octocat -e test
+
+# Exclude multiple repositories
+gh list-security-advisories octocat -e test -e demo
+
+# Exclude repositories by full name
+gh list-security-advisories octocat -e octocat/private-repo
+```
+
+Limit the number of alerts per repository:
+
+```bash
+# Fetch only the first 10 alerts per repository
+gh list-security-advisories octocat -l 10
+
+# Combine with other options
+gh list-security-advisories octocat -l 50 -e test
+```
 
 ## Output Format
 
