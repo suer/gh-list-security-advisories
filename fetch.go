@@ -23,24 +23,27 @@ type VulnerabilityAlert struct {
 }
 
 type Repository struct {
-	Name                string
+	Name  string
+	Owner struct {
+		Login string
+	}
 	VulnerabilityAlerts struct {
 		Nodes []VulnerabilityAlert
 	} `graphql:"vulnerabilityAlerts(first: $alertLimit, states: OPEN)"`
 }
 
-type RepositoryConnection struct {
+type SearchResultItemConnection struct {
 	PageInfo struct {
 		HasNextPage bool
 		EndCursor   string
 	}
-	Nodes []Repository
+	Nodes []struct {
+		Repository Repository `graphql:"... on Repository"`
+	}
 }
 
 type query struct {
-	RepositoryOwner struct {
-		Repositories RepositoryConnection `graphql:"repositories(first: 100, after: $cursor)"`
-	} `graphql:"repositoryOwner(login: $owner)"`
+	Search SearchResultItemConnection `graphql:"search(query: $searchQuery, type: REPOSITORY, first: 100, after: $cursor)"`
 }
 
 type RepositoryItem struct {
@@ -85,13 +88,14 @@ func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, err
 
 	var allRepositories []Repository
 	var cursor *graphql.String
+	searchQuery := fmt.Sprintf("user:%s archived:false", owner)
 
 	for {
 		var q query
 		variables := map[string]interface{}{
-			"owner":      graphql.String(owner),
-			"cursor":     cursor,
-			"alertLimit": graphql.Int(opts.Limit),
+			"searchQuery": graphql.String(searchQuery),
+			"cursor":      cursor,
+			"alertLimit":  graphql.Int(opts.Limit),
 		}
 
 		err = client.Query("GetSecurityAdvisories", &q, variables)
@@ -99,12 +103,14 @@ func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, err
 			return []RepositoryItem{}, err
 		}
 
-		allRepositories = append(allRepositories, q.RepositoryOwner.Repositories.Nodes...)
+		for _, node := range q.Search.Nodes {
+			allRepositories = append(allRepositories, node.Repository)
+		}
 
-		if !q.RepositoryOwner.Repositories.PageInfo.HasNextPage {
+		if !q.Search.PageInfo.HasNextPage {
 			break
 		}
-		endCursor := graphql.String(q.RepositoryOwner.Repositories.PageInfo.EndCursor)
+		endCursor := graphql.String(q.Search.PageInfo.EndCursor)
 		cursor = &endCursor
 	}
 
@@ -114,7 +120,7 @@ func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, err
 			continue
 		}
 
-		repoFullName := fmt.Sprintf("%s/%s", owner, repo.Name)
+		repoFullName := fmt.Sprintf("%s/%s", repo.Owner.Login, repo.Name)
 
 		if shouldExcludeRepository(repoFullName, opts.Excludes) {
 			continue
