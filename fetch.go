@@ -21,10 +21,10 @@ type VulnerabilityAlert struct {
 }
 
 type Repository struct {
-	Name               string
+	Name                string
 	VulnerabilityAlerts struct {
 		Nodes []VulnerabilityAlert
-	} `graphql:"vulnerabilityAlerts(first: 100)"`
+	} `graphql:"vulnerabilityAlerts(first: 100, states: OPEN)"`
 }
 
 type RepositoryConnection struct {
