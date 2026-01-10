@@ -125,11 +125,10 @@ func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, err
 		}
 	}
 
-	// sort advisories in each repository by CreatedAt
 	for name := range repoMap {
 		items := repoMap[name].AdvisoryItems
 		sort.Slice(items, func(i, j int) bool {
-			return items[i].CreatedAt.Before(items[j].CreatedAt)
+			return items[j].CreatedAt.Before(items[i].CreatedAt)
 		})
 		repoMap[name] = RepositoryItem{
 			Name:          name,
