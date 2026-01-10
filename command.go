@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/spf13/cobra"
@@ -12,6 +13,7 @@ type Options struct {
 	Excludes   *[]string
 	Limit      int
 	Severities *[]string
+	Show       string
 }
 
 func rootCmd() *cobra.Command {
@@ -19,9 +21,20 @@ func rootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "gh list-security-advisories <owner> [<owner>...]",
 		Short:         "List security advisories for one or more owners' repositories",
-		Args:          cobra.MinimumNArgs(1),
 		SilenceErrors: true,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if opts.Show != "" {
+				return nil
+			}
+			if len(args) < 1 {
+				return errors.New("requires at least 1 owner argument")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if opts.Show != "" {
+				return showAdvisory(opts.Show, opts)
+			}
 			owners := args
 			return run(owners, opts)
 		},
@@ -30,6 +43,7 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().StringArrayVarP(opts.Excludes, "exclude", "e", []string{}, "exclude repositories")
 	cmd.Flags().IntVarP(&opts.Limit, "limit", "l", 100, "Max number of vulnerability alerts to fetch per repository")
 	cmd.Flags().StringArrayVarP(opts.Severities, "severity", "s", []string{}, "filter by severity (CRITICAL, HIGH, MODERATE, LOW)")
+	cmd.Flags().StringVar(&opts.Show, "show", "", "show details of a specific GHSA ID")
 	cmd.Flags().BoolVar(&opts.NoColor, "no-color", false, "disable color output")
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", false, "verbose output")
 
