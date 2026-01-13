@@ -65,8 +65,6 @@ func showAdvisory(ghsaId string, opts *Options) error {
 		return err
 	}
 
-	formatter := NewFormatter(opts.NoColor)
-
 	fmt.Printf("GHSA ID: %s\n", formatGhsaIdForShow(ghsaId, opts.NoColor))
 	fmt.Printf("Severity: %s\n", formatSeverityForShow(advisory.Severity, opts.NoColor))
 	fmt.Printf("Summary: %s\n", advisory.Summary)
@@ -108,8 +106,6 @@ func showAdvisory(ghsaId string, opts *Options) error {
 		}
 		fmt.Println()
 	}
-
-	_ = formatter
 
 	return nil
 }
