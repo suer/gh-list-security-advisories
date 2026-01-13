@@ -54,7 +54,7 @@ func run(owners []string, opts *Options) error {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var allRepositories []RepositoryItem
-	var firstError error
+	var errs []error
 
 	for _, owner := range owners {
 		wg.Add(1)
@@ -66,8 +66,8 @@ func run(owners []string, opts *Options) error {
 			mu.Lock()
 			defer mu.Unlock()
 
-			if err != nil && firstError == nil {
-				firstError = err
+			if err != nil {
+				errs = append(errs, err)
 				return
 			}
 
@@ -77,8 +77,8 @@ func run(owners []string, opts *Options) error {
 
 	wg.Wait()
 
-	if firstError != nil {
-		return firstError
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 
 	printResult(allRepositories, opts)

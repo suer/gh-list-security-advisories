@@ -29,9 +29,9 @@ type SecurityAdvisoryDetail struct {
 				Name      string
 				Ecosystem string
 			}
-			VulnerableVersionRange   string
-			FirstPatchedVersion      struct{ Identifier string }
-			UpdatedAt                string
+			VulnerableVersionRange string
+			FirstPatchedVersion    struct{ Identifier string }
+			UpdatedAt              string
 		}
 	} `graphql:"vulnerabilities(first: 10)"`
 }
@@ -64,8 +64,6 @@ func showAdvisory(ghsaId string, opts *Options) error {
 	if err != nil {
 		return err
 	}
-
-	formatter := NewFormatter(opts.NoColor)
 
 	fmt.Printf("GHSA ID: %s\n", formatGhsaIdForShow(ghsaId, opts.NoColor))
 	fmt.Printf("Severity: %s\n", formatSeverityForShow(advisory.Severity, opts.NoColor))
@@ -108,8 +106,6 @@ func showAdvisory(ghsaId string, opts *Options) error {
 		}
 		fmt.Println()
 	}
-
-	_ = formatter
 
 	return nil
 }
