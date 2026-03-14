@@ -2,12 +2,15 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"runtime/debug"
 	"sync"
 
 	"github.com/spf13/cobra"
 )
 
 type Options struct {
+	Version    bool
 	NoColor    bool
 	Verbose    bool
 	Excludes   *[]string
@@ -23,6 +26,9 @@ func rootCmd() *cobra.Command {
 		Short:         "List security advisories for one or more owners' repositories",
 		SilenceErrors: true,
 		Args: func(cmd *cobra.Command, args []string) error {
+			if opts.Version {
+				return nil
+			}
 			if opts.Show != "" {
 				return nil
 			}
@@ -40,6 +46,7 @@ func rootCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&opts.Version, "version", false, "show version")
 	cmd.Flags().StringArrayVarP(opts.Excludes, "exclude", "e", []string{}, "exclude repositories")
 	cmd.Flags().IntVarP(&opts.Limit, "limit", "l", 100, "Max number of vulnerability alerts to fetch per repository")
 	cmd.Flags().StringArrayVarP(opts.Severities, "severity", "s", []string{}, "filter by severity (CRITICAL, HIGH, MODERATE, LOW)")
@@ -51,6 +58,15 @@ func rootCmd() *cobra.Command {
 }
 
 func run(owners []string, opts *Options) error {
+	if opts.Version {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			fmt.Println(info.Main.Version)
+			return nil
+		} else {
+			return errors.New("could not read build info")
+		}
+	}
+
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var allRepositories []RepositoryItem
