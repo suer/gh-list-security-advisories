@@ -4,7 +4,9 @@ import (
 	"fmt"
 )
 
-func (ai *AdvisoryItem) printLine(ghsaIdWidth int, severityWidth int, createdAtWidth int, formatter Formatter) {
+func (ai *AdvisoryItem) printLine(alertTypeWidth, ghsaIdWidth, severityWidth int, formatter Formatter) {
+	alertType := formatter.FormatAlertType(ai)
+	alertTypePadding := alertTypeWidth - len(ai.AlertType)
 	ghsaId := formatter.FormatGhsaId(ai)
 	ghsaIdPadding := ghsaIdWidth - len(ai.GhsaId)
 	severity := formatter.FormatSeverity(ai)
@@ -12,7 +14,8 @@ func (ai *AdvisoryItem) printLine(ghsaIdWidth int, severityWidth int, createdAtW
 	createdAt := formatter.FormatCreatedAt(ai)
 	summary := formatter.FormatSummary(ai)
 
-	fmt.Printf("%s%-*s %s%-*s %s %s\n",
+	fmt.Printf("%s%-*s %s%-*s %s%-*s %s %s\n",
+		alertType, alertTypePadding+1, "",
 		ghsaId, ghsaIdPadding+1, "",
 		severity, severityPadding+1, "",
 		createdAt,
@@ -22,26 +25,26 @@ func (ai *AdvisoryItem) printLine(ghsaIdWidth int, severityWidth int, createdAtW
 func (ri *RepositoryItem) printList(opts *Options) {
 	formatter := NewFormatter(opts.NoColor)
 
+	alertTypeWidth := 0
 	ghsaIdWidth := 0
 	severityWidth := 0
-	createdAtWidth := len("2006-01-02")
 
 	for _, advisory := range ri.AdvisoryItems {
-		ghsaWidth := len(advisory.GhsaId)
-		if ghsaWidth > ghsaIdWidth {
-			ghsaIdWidth = ghsaWidth
+		if len(advisory.AlertType) > alertTypeWidth {
+			alertTypeWidth = len(advisory.AlertType)
 		}
-
-		sevWidth := len(advisory.Severity)
-		if sevWidth > severityWidth {
-			severityWidth = sevWidth
+		if len(advisory.GhsaId) > ghsaIdWidth {
+			ghsaIdWidth = len(advisory.GhsaId)
+		}
+		if len(advisory.Severity) > severityWidth {
+			severityWidth = len(advisory.Severity)
 		}
 	}
 
 	fmt.Printf("# %s\n", formatter.FormatRepositoryName(ri.Name))
 
 	for _, advisory := range ri.AdvisoryItems {
-		advisory.printLine(ghsaIdWidth, severityWidth, createdAtWidth, formatter)
+		advisory.printLine(alertTypeWidth, ghsaIdWidth, severityWidth, formatter)
 	}
 }
 

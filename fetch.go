@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -52,11 +54,37 @@ type RepositoryItem struct {
 }
 
 type AdvisoryItem struct {
+	AlertType      string
+	AlertNumber    int
 	GhsaId         string
 	Summary        string
 	Severity       string
 	CreatedAt      time.Time
 	RepositoryName string
+}
+
+type codeScanningAlertResponse struct {
+	Number    int    `json:"number"`
+	CreatedAt string `json:"created_at"`
+	Rule      struct {
+		ID                    string `json:"id"`
+		Description           string `json:"description"`
+		SecuritySeverityLevel string `json:"security_severity_level"`
+		Severity              string `json:"severity"`
+	} `json:"rule"`
+	Repository struct {
+		FullName string `json:"full_name"`
+	} `json:"repository"`
+}
+
+type secretScanningAlertResponse struct {
+	Number                int    `json:"number"`
+	CreatedAt             string `json:"created_at"`
+	SecretType            string `json:"secret_type"`
+	SecretTypeDisplayName string `json:"secret_type_display_name"`
+	Repository            struct {
+		FullName string `json:"full_name"`
+	} `json:"repository"`
 }
 
 func shouldExcludeRepository(repoFullName string, excludes *[]string) bool {
@@ -80,15 +108,45 @@ func shouldIncludeSeverity(severity string, severities *[]string) bool {
 	return false
 }
 
-func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, error) {
-	client, err := api.DefaultGraphQLClient()
-	if err != nil {
-		return []RepositoryItem{}, err
+func mapCodeScanningSeverity(secLevel, severity string) string {
+	switch strings.ToLower(secLevel) {
+	case "critical":
+		return "CRITICAL"
+	case "high":
+		return "HIGH"
+	case "medium":
+		return "MODERATE"
+	case "low":
+		return "LOW"
 	}
+	switch strings.ToLower(severity) {
+	case "error":
+		return "HIGH"
+	case "warning":
+		return "MODERATE"
+	case "note":
+		return "LOW"
+	}
+	return "LOW"
+}
 
-	var allRepositories []Repository
+func isNotFound(err error) bool {
+	var httpErr *api.HTTPError
+	return errors.As(err, &httpErr) && httpErr.StatusCode == 404
+}
+
+func addToRepoMap(repoMap map[string]RepositoryItem, item AdvisoryItem) {
+	ri := repoMap[item.RepositoryName]
+	ri.Name = item.RepositoryName
+	ri.AdvisoryItems = append(ri.AdvisoryItems, item)
+	repoMap[item.RepositoryName] = ri
+}
+
+// fetchDependabotAlerts fetches vulnerability alerts via GraphQL and returns all repo full names found.
+func fetchDependabotAlerts(gqlClient *api.GraphQLClient, owner string, opts *Options, repoMap map[string]RepositoryItem) ([]string, error) {
 	var cursor *graphql.String
 	searchQuery := fmt.Sprintf("user:%s archived:false", owner)
+	var allRepoNames []string
 
 	for {
 		var q query
@@ -98,13 +156,31 @@ func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, err
 			"alertLimit":  graphql.Int(opts.Limit),
 		}
 
-		err = client.Query("GetSecurityAdvisories", &q, variables)
-		if err != nil {
-			return []RepositoryItem{}, err
+		if err := gqlClient.Query("GetSecurityAdvisories", &q, variables); err != nil {
+			return nil, err
 		}
 
 		for _, node := range q.Search.Nodes {
-			allRepositories = append(allRepositories, node.Repository)
+			repo := node.Repository
+			repoFullName := fmt.Sprintf("%s/%s", repo.Owner.Login, repo.Name)
+			allRepoNames = append(allRepoNames, repoFullName)
+
+			if shouldExcludeRepository(repoFullName, opts.Excludes) {
+				continue
+			}
+			for _, alert := range repo.VulnerabilityAlerts.Nodes {
+				if !shouldIncludeSeverity(alert.SecurityAdvisory.Severity, opts.Severities) {
+					continue
+				}
+				addToRepoMap(repoMap, AdvisoryItem{
+					AlertType:      "dependabot",
+					GhsaId:         alert.SecurityAdvisory.GhsaId,
+					Summary:        alert.SecurityAdvisory.Summary,
+					Severity:       alert.SecurityAdvisory.Severity,
+					CreatedAt:      alert.CreatedAt,
+					RepositoryName: repoFullName,
+				})
+			}
 		}
 
 		if !q.Search.PageInfo.HasNextPage {
@@ -113,42 +189,209 @@ func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, err
 		endCursor := graphql.String(q.Search.PageInfo.EndCursor)
 		cursor = &endCursor
 	}
+	return allRepoNames, nil
+}
 
-	repoMap := map[string]RepositoryItem{}
-	for _, repo := range allRepositories {
-		if len(repo.VulnerabilityAlerts.Nodes) == 0 {
-			continue
-		}
+func collectCodeScanningAlert(alert codeScanningAlertResponse, repoFullName string, opts *Options) (AdvisoryItem, bool) {
+	severity := mapCodeScanningSeverity(alert.Rule.SecuritySeverityLevel, alert.Rule.Severity)
+	if shouldExcludeRepository(repoFullName, opts.Excludes) {
+		return AdvisoryItem{}, false
+	}
+	if !shouldIncludeSeverity(severity, opts.Severities) {
+		return AdvisoryItem{}, false
+	}
+	createdAt, _ := time.Parse(time.RFC3339, alert.CreatedAt)
+	return AdvisoryItem{
+		AlertType:      "code-scanning",
+		AlertNumber:    alert.Number,
+		GhsaId:         alert.Rule.ID,
+		Summary:        alert.Rule.Description,
+		Severity:       severity,
+		CreatedAt:      createdAt,
+		RepositoryName: repoFullName,
+	}, true
+}
 
-		repoFullName := fmt.Sprintf("%s/%s", repo.Owner.Login, repo.Name)
-
-		if shouldExcludeRepository(repoFullName, opts.Excludes) {
-			continue
-		}
-
-		advisoryItems := []AdvisoryItem{}
-		for _, alert := range repo.VulnerabilityAlerts.Nodes {
-			if !shouldIncludeSeverity(alert.SecurityAdvisory.Severity, opts.Severities) {
-				continue
+func fetchCodeScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) bool {
+	for page := 1; ; page++ {
+		path := fmt.Sprintf("orgs/%s/code-scanning/alerts?state=open&per_page=100&page=%d", org, page)
+		var alerts []codeScanningAlertResponse
+		if err := restClient.Get(path, &alerts); err != nil {
+			if isNotFound(err) {
+				return false
 			}
-			advisoryItems = append(advisoryItems, AdvisoryItem{
-				GhsaId:         alert.SecurityAdvisory.GhsaId,
-				Summary:        alert.SecurityAdvisory.Summary,
-				Severity:       alert.SecurityAdvisory.Severity,
-				CreatedAt:      alert.CreatedAt,
-				RepositoryName: repoFullName,
-			})
+			break
 		}
-
-		if len(advisoryItems) == 0 {
-			continue
+		if len(alerts) == 0 {
+			break
 		}
-
-		repoMap[repoFullName] = RepositoryItem{
-			Name:          repoFullName,
-			AdvisoryItems: advisoryItems,
+		for _, alert := range alerts {
+			if item, ok := collectCodeScanningAlert(alert, alert.Repository.FullName, opts); ok {
+				addToRepoMap(repoMap, item)
+			}
 		}
 	}
+	return true
+}
+
+func collectCodeScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) []AdvisoryItem {
+	var items []AdvisoryItem
+	for page := 1; ; page++ {
+		path := fmt.Sprintf("repos/%s/code-scanning/alerts?state=open&per_page=100&page=%d", repoFullName, page)
+		var alerts []codeScanningAlertResponse
+		if err := restClient.Get(path, &alerts); err != nil {
+			break
+		}
+		if len(alerts) == 0 {
+			break
+		}
+		for _, alert := range alerts {
+			if item, ok := collectCodeScanningAlert(alert, repoFullName, opts); ok {
+				items = append(items, item)
+			}
+		}
+	}
+	return items
+}
+
+func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem) {
+	if fetchCodeScanningAlertsOrg(restClient, owner, opts, repoMap) {
+		return
+	}
+	const concurrency = 10
+	sem := make(chan struct{}, concurrency)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for _, repo := range allRepos {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(repoFullName string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			items := collectCodeScanningAlertsForRepo(restClient, repoFullName, opts)
+			if len(items) > 0 {
+				mu.Lock()
+				for _, item := range items {
+					addToRepoMap(repoMap, item)
+				}
+				mu.Unlock()
+			}
+		}(repo)
+	}
+	wg.Wait()
+}
+
+func collectSecretScanningAlert(alert secretScanningAlertResponse, repoFullName string, opts *Options) (AdvisoryItem, bool) {
+	if shouldExcludeRepository(repoFullName, opts.Excludes) {
+		return AdvisoryItem{}, false
+	}
+	displayName := alert.SecretTypeDisplayName
+	if displayName == "" {
+		displayName = alert.SecretType
+	}
+	createdAt, _ := time.Parse(time.RFC3339, alert.CreatedAt)
+	return AdvisoryItem{
+		AlertType:      "secret-scanning",
+		AlertNumber:    alert.Number,
+		GhsaId:         alert.SecretType,
+		Summary:        displayName,
+		Severity:       "-",
+		CreatedAt:      createdAt,
+		RepositoryName: repoFullName,
+	}, true
+}
+
+func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) bool {
+	for page := 1; ; page++ {
+		path := fmt.Sprintf("orgs/%s/secret-scanning/alerts?state=open&per_page=100&page=%d", org, page)
+		var alerts []secretScanningAlertResponse
+		if err := restClient.Get(path, &alerts); err != nil {
+			if isNotFound(err) {
+				return false
+			}
+			break
+		}
+		if len(alerts) == 0 {
+			break
+		}
+		for _, alert := range alerts {
+			if item, ok := collectSecretScanningAlert(alert, alert.Repository.FullName, opts); ok {
+				addToRepoMap(repoMap, item)
+			}
+		}
+	}
+	return true
+}
+
+func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) []AdvisoryItem {
+	var items []AdvisoryItem
+	for page := 1; ; page++ {
+		path := fmt.Sprintf("repos/%s/secret-scanning/alerts?state=open&per_page=100&page=%d", repoFullName, page)
+		var alerts []secretScanningAlertResponse
+		if err := restClient.Get(path, &alerts); err != nil {
+			break
+		}
+		if len(alerts) == 0 {
+			break
+		}
+		for _, alert := range alerts {
+			if item, ok := collectSecretScanningAlert(alert, repoFullName, opts); ok {
+				items = append(items, item)
+			}
+		}
+	}
+	return items
+}
+
+func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem) {
+	// Secret scanning alerts have no severity; skip when severity filter is active
+	if len(*opts.Severities) > 0 {
+		return
+	}
+	if fetchSecretScanningAlertsOrg(restClient, owner, opts, repoMap) {
+		return
+	}
+	const concurrency = 10
+	sem := make(chan struct{}, concurrency)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for _, repo := range allRepos {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(repoFullName string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			items := collectSecretScanningAlertsForRepo(restClient, repoFullName, opts)
+			if len(items) > 0 {
+				mu.Lock()
+				for _, item := range items {
+					addToRepoMap(repoMap, item)
+				}
+				mu.Unlock()
+			}
+		}(repo)
+	}
+	wg.Wait()
+}
+
+func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, error) {
+	gqlClient, err := api.DefaultGraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+	restClient, err := api.DefaultRESTClient()
+	if err != nil {
+		return nil, err
+	}
+
+	repoMap := map[string]RepositoryItem{}
+
+	allRepos, err := fetchDependabotAlerts(gqlClient, owner, opts, repoMap)
+	if err != nil {
+		return nil, err
+	}
+	fetchCodeScanningAlerts(restClient, owner, allRepos, opts, repoMap)
+	fetchSecretScanningAlerts(restClient, owner, allRepos, opts, repoMap)
 
 	for name := range repoMap {
 		items := repoMap[name].AdvisoryItems
@@ -161,7 +404,6 @@ func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, err
 		}
 	}
 
-	// get sorted repositories
 	repoNames := make([]string, 0, len(repoMap))
 	for name := range repoMap {
 		repoNames = append(repoNames, name)
