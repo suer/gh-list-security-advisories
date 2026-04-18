@@ -8,6 +8,7 @@ import (
 )
 
 type Formatter interface {
+	FormatAlertType(ai *AdvisoryItem) string
 	FormatGhsaId(ai *AdvisoryItem) string
 	FormatSeverity(ai *AdvisoryItem) string
 	FormatCreatedAt(ai *AdvisoryItem) string
@@ -17,8 +18,27 @@ type Formatter interface {
 
 type ColorFormatter struct{}
 
+func (cf *ColorFormatter) FormatAlertType(ai *AdvisoryItem) string {
+	switch ai.AlertType {
+	case "code-scanning":
+		return aurora.Blue(ai.AlertType).String()
+	case "secret-scanning":
+		return aurora.Magenta(ai.AlertType).String()
+	default:
+		return aurora.Cyan(ai.AlertType).String()
+	}
+}
+
 func (cf *ColorFormatter) FormatGhsaId(ai *AdvisoryItem) string {
-	url := fmt.Sprintf("https://github.com/advisories/%s", ai.GhsaId)
+	var url string
+	switch ai.AlertType {
+	case "code-scanning":
+		url = fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", ai.RepositoryName, ai.AlertNumber)
+	case "secret-scanning":
+		url = fmt.Sprintf("https://github.com/%s/security/secret-scanning/%d", ai.RepositoryName, ai.AlertNumber)
+	default:
+		url = fmt.Sprintf("https://github.com/advisories/%s", ai.GhsaId)
+	}
 	return aurora.Cyan(ai.GhsaId).Hyperlink(url).String()
 }
 
@@ -51,6 +71,10 @@ func (cf *ColorFormatter) FormatRepositoryName(name string) string {
 }
 
 type NoColorFormatter struct{}
+
+func (ncf *NoColorFormatter) FormatAlertType(ai *AdvisoryItem) string {
+	return ai.AlertType
+}
 
 func (ncf *NoColorFormatter) FormatGhsaId(ai *AdvisoryItem) string {
 	return ai.GhsaId
