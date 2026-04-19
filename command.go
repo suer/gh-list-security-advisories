@@ -67,6 +67,9 @@ func run(owners []string, opts *Options) error {
 		}
 	}
 
+	pb := NewProgressBar()
+	pb.Start()
+
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var allRepositories []RepositoryItem
@@ -77,7 +80,7 @@ func run(owners []string, opts *Options) error {
 		go func(owner string) {
 			defer wg.Done()
 
-			repositories, err := fetchSecurityAdvisories(owner, opts)
+			repositories, err := fetchSecurityAdvisories(owner, opts, pb)
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -92,6 +95,7 @@ func run(owners []string, opts *Options) error {
 	}
 
 	wg.Wait()
+	pb.Stop()
 
 	if len(errs) > 0 {
 		return errors.Join(errs...)
