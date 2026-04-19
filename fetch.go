@@ -254,8 +254,9 @@ func collectCodeScanningAlertsForRepo(restClient *api.RESTClient, repoFullName s
 	return items
 }
 
-func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem) {
+func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) {
 	if fetchCodeScanningAlertsOrg(restClient, owner, opts, repoMap) {
+		pb.current.Add(int64(len(allRepos)))
 		return
 	}
 	const concurrency = 10
@@ -268,6 +269,7 @@ func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos 
 		go func(repoFullName string) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer pb.Increment()
 			items := collectCodeScanningAlertsForRepo(restClient, repoFullName, opts)
 			if len(items) > 0 {
 				mu.Lock()
@@ -343,12 +345,14 @@ func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName
 	return items
 }
 
-func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem) {
+func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) {
 	// Secret scanning alerts have no severity; skip when severity filter is active
 	if len(*opts.Severities) > 0 {
+		pb.current.Add(int64(len(allRepos)))
 		return
 	}
 	if fetchSecretScanningAlertsOrg(restClient, owner, opts, repoMap) {
+		pb.current.Add(int64(len(allRepos)))
 		return
 	}
 	const concurrency = 10
@@ -361,6 +365,7 @@ func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepo
 		go func(repoFullName string) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer pb.Increment()
 			items := collectSecretScanningAlertsForRepo(restClient, repoFullName, opts)
 			if len(items) > 0 {
 				mu.Lock()
@@ -374,7 +379,7 @@ func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepo
 	wg.Wait()
 }
 
-func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, error) {
+func fetchSecurityAdvisories(owner string, opts *Options, pb *ProgressBar) ([]RepositoryItem, error) {
 	gqlClient, err := api.DefaultGraphQLClient()
 	if err != nil {
 		return nil, err
@@ -390,8 +395,9 @@ func fetchSecurityAdvisories(owner string, opts *Options) ([]RepositoryItem, err
 	if err != nil {
 		return nil, err
 	}
-	fetchCodeScanningAlerts(restClient, owner, allRepos, opts, repoMap)
-	fetchSecretScanningAlerts(restClient, owner, allRepos, opts, repoMap)
+	pb.AddTotal(len(allRepos) * 2)
+	fetchCodeScanningAlerts(restClient, owner, allRepos, opts, repoMap, pb)
+	fetchSecretScanningAlerts(restClient, owner, allRepos, opts, repoMap, pb)
 
 	for name := range repoMap {
 		items := repoMap[name].AdvisoryItems
