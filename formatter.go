@@ -10,6 +10,7 @@ import (
 type Formatter interface {
 	FormatAlertType(ai *AdvisoryItem) string
 	FormatGhsaId(ai *AdvisoryItem) string
+	FormatAlertLink(ai *AdvisoryItem) string
 	FormatSeverity(ai *AdvisoryItem) string
 	FormatCreatedAt(ai *AdvisoryItem) string
 	FormatSummary(ai *AdvisoryItem) string
@@ -40,6 +41,24 @@ func (cf *ColorFormatter) FormatGhsaId(ai *AdvisoryItem) string {
 		url = fmt.Sprintf("https://github.com/advisories/%s", ai.GhsaId)
 	}
 	return aurora.Cyan(ai.GhsaId).Hyperlink(url).String()
+}
+
+func alertLinkURL(ai *AdvisoryItem) string {
+	switch ai.AlertType {
+	case "code-scanning":
+		return fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", ai.RepositoryName, ai.AlertNumber)
+	case "secret-scanning":
+		return fmt.Sprintf("https://github.com/%s/security/secret-scanning/%d", ai.RepositoryName, ai.AlertNumber)
+	default:
+		return fmt.Sprintf("https://github.com/%s/security/dependabot/%d", ai.RepositoryName, ai.AlertNumber)
+	}
+}
+
+func (cf *ColorFormatter) FormatAlertLink(ai *AdvisoryItem) string {
+	if ai.AlertNumber == 0 {
+		return ""
+	}
+	return aurora.Cyan(fmt.Sprintf("#%d", ai.AlertNumber)).Hyperlink(alertLinkURL(ai)).String()
 }
 
 func (cf *ColorFormatter) FormatSeverity(ai *AdvisoryItem) string {
@@ -78,6 +97,13 @@ func (ncf *NoColorFormatter) FormatAlertType(ai *AdvisoryItem) string {
 
 func (ncf *NoColorFormatter) FormatGhsaId(ai *AdvisoryItem) string {
 	return ai.GhsaId
+}
+
+func (ncf *NoColorFormatter) FormatAlertLink(ai *AdvisoryItem) string {
+	if ai.AlertNumber == 0 {
+		return ""
+	}
+	return fmt.Sprintf("#%d", ai.AlertNumber)
 }
 
 func (ncf *NoColorFormatter) FormatSeverity(ai *AdvisoryItem) string {
