@@ -19,7 +19,7 @@ type SecurityAdvisory struct {
 }
 
 type VulnerabilityAlert struct {
-	Id               string
+	Number           int
 	CreatedAt        time.Time
 	SecurityAdvisory SecurityAdvisory
 }
@@ -174,6 +174,7 @@ func fetchDependabotAlerts(gqlClient *api.GraphQLClient, owner string, opts *Opt
 				}
 				addToRepoMap(repoMap, AdvisoryItem{
 					AlertType:      "dependabot",
+					AlertNumber:    alert.Number,
 					GhsaId:         alert.SecurityAdvisory.GhsaId,
 					Summary:        alert.SecurityAdvisory.Summary,
 					Severity:       alert.SecurityAdvisory.Severity,
