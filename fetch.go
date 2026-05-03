@@ -13,9 +13,10 @@ import (
 )
 
 type SecurityAdvisory struct {
-	GhsaId   string
-	Summary  string
-	Severity string
+	GhsaId         string
+	Summary        string
+	Severity       string
+	Classification string
 }
 
 type VulnerabilityAlert struct {
@@ -172,8 +173,12 @@ func fetchDependabotAlerts(gqlClient *api.GraphQLClient, owner string, opts *Opt
 				if !shouldIncludeSeverity(alert.SecurityAdvisory.Severity, opts.Severities) {
 					continue
 				}
+				alertType := "dependabot"
+				if strings.EqualFold(alert.SecurityAdvisory.Classification, "MALWARE") {
+					alertType = "malware"
+				}
 				addToRepoMap(repoMap, AdvisoryItem{
-					AlertType:      "dependabot",
+					AlertType:      alertType,
 					AlertNumber:    alert.Number,
 					GhsaId:         alert.SecurityAdvisory.GhsaId,
 					Summary:        alert.SecurityAdvisory.Summary,

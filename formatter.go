@@ -25,6 +25,8 @@ func (cf *ColorFormatter) FormatAlertType(ai *AdvisoryItem) string {
 		return aurora.Blue(ai.AlertType).String()
 	case "secret-scanning":
 		return aurora.Magenta(ai.AlertType).String()
+	case "malware":
+		return aurora.Red(ai.AlertType).String()
 	default:
 		return aurora.Cyan(ai.AlertType).String()
 	}
@@ -37,6 +39,8 @@ func (cf *ColorFormatter) FormatGhsaId(ai *AdvisoryItem) string {
 		url = fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", ai.RepositoryName, ai.AlertNumber)
 	case "secret-scanning":
 		url = fmt.Sprintf("https://github.com/%s/security/secret-scanning/%d", ai.RepositoryName, ai.AlertNumber)
+	case "malware", "dependabot":
+		url = fmt.Sprintf("https://github.com/advisories/%s", ai.GhsaId)
 	default:
 		url = fmt.Sprintf("https://github.com/advisories/%s", ai.GhsaId)
 	}
@@ -49,6 +53,8 @@ func alertLinkURL(ai *AdvisoryItem) string {
 		return fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", ai.RepositoryName, ai.AlertNumber)
 	case "secret-scanning":
 		return fmt.Sprintf("https://github.com/%s/security/secret-scanning/%d", ai.RepositoryName, ai.AlertNumber)
+	case "malware":
+		return fmt.Sprintf("https://github.com/%s/security/malware/%d", ai.RepositoryName, ai.AlertNumber)
 	default:
 		return fmt.Sprintf("https://github.com/%s/security/dependabot/%d", ai.RepositoryName, ai.AlertNumber)
 	}
