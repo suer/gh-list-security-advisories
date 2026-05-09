@@ -401,9 +401,20 @@ func fetchSecurityAdvisories(owner string, opts *Options, pb *ProgressBar) ([]Re
 	if err != nil {
 		return nil, err
 	}
-	pb.AddTotal(len(allRepos) * 2)
-	fetchCodeScanningAlerts(restClient, owner, allRepos, opts, repoMap, pb)
-	fetchSecretScanningAlerts(restClient, owner, allRepos, opts, repoMap, pb)
+	extraFetches := 0
+	if opts.CodeScanning {
+		extraFetches++
+	}
+	if opts.SecretScanning {
+		extraFetches++
+	}
+	pb.AddTotal(len(allRepos) * extraFetches)
+	if opts.CodeScanning {
+		fetchCodeScanningAlerts(restClient, owner, allRepos, opts, repoMap, pb)
+	}
+	if opts.SecretScanning {
+		fetchSecretScanningAlerts(restClient, owner, allRepos, opts, repoMap, pb)
+	}
 
 	for name := range repoMap {
 		items := repoMap[name].AdvisoryItems

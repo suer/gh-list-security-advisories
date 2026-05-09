@@ -32,13 +32,15 @@ For multiple owners:
 gh list-security-advisories octocat github
 ```
 
-This will display all security advisories for all repositories owned by the specified owner(s). When multiple owners are specified, they are processed in parallel for faster results.
+This will display Dependabot alerts for all repositories owned by the specified owner(s). When multiple owners are specified, they are processed in parallel for faster results.
 
 ### Flags
 
 - `-e, --exclude`: Exclude repositories containing the specified string (can be used multiple times)
 - `-l, --limit`: Max number of vulnerability alerts to fetch per repository (default: 100)
 - `-s, --severity`: Filter by severity (CRITICAL, HIGH, MODERATE, LOW) (can be used multiple times)
+- `--codescanning`: Also collect code scanning alerts
+- `--secretscanning`: Also collect secret scanning alerts
 - `--show`: Show detailed information for a specific GHSA ID
 - `--no-color`: Disable color output
 - `-v, --verbose`: Verbose output
@@ -80,6 +82,19 @@ gh list-security-advisories octocat -s HIGH -s CRITICAL
 
 # Combine with other options
 gh list-security-advisories octocat -s CRITICAL -s HIGH -e test
+```
+
+Collect additional alert types:
+
+```bash
+# Also collect code scanning alerts
+gh list-security-advisories octocat --codescanning
+
+# Also collect secret scanning alerts
+gh list-security-advisories octocat --secretscanning
+
+# Collect all alert types
+gh list-security-advisories octocat --codescanning --secretscanning
 ```
 
 Show detailed advisory information:

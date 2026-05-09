@@ -10,13 +10,15 @@ import (
 )
 
 type Options struct {
-	Version    bool
-	NoColor    bool
-	Verbose    bool
-	Excludes   *[]string
-	Limit      int
-	Severities *[]string
-	Show       string
+	Version        bool
+	NoColor        bool
+	Verbose        bool
+	Excludes       *[]string
+	Limit          int
+	Severities     *[]string
+	Show           string
+	CodeScanning   bool
+	SecretScanning bool
 }
 
 func rootCmd() *cobra.Command {
@@ -53,6 +55,8 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.Show, "show", "", "show details of a specific GHSA ID")
 	cmd.Flags().BoolVar(&opts.NoColor, "no-color", false, "disable color output")
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", false, "verbose output")
+	cmd.Flags().BoolVar(&opts.CodeScanning, "codescanning", false, "also collect code scanning alerts")
+	cmd.Flags().BoolVar(&opts.SecretScanning, "secretscanning", false, "also collect secret scanning alerts")
 
 	return cmd
 }
