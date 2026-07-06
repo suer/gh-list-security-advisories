@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -218,15 +219,19 @@ func collectCodeScanningAlert(alert codeScanningAlertResponse, repoFullName stri
 	}, true
 }
 
-func fetchCodeScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) bool {
+// fetchCodeScanningAlertsOrg reports (false, nil) when the org-level endpoint
+// is unavailable (404), signalling the caller to fall back to per-repo
+// fetches. Any other error is returned so the caller can surface it instead
+// of silently under-reporting alerts.
+func fetchCodeScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error) {
 	for page := 1; ; page++ {
 		path := fmt.Sprintf("orgs/%s/code-scanning/alerts?state=open&per_page=100&page=%d", org, page)
 		var alerts []codeScanningAlertResponse
 		if err := restClient.Get(path, &alerts); err != nil {
 			if isNotFound(err) {
-				return false
+				return false, nil
 			}
-			break
+			return false, fmt.Errorf("fetching org code scanning alerts for %s (page %d): %w", org, page, err)
 		}
 		if len(alerts) == 0 {
 			break
@@ -237,16 +242,19 @@ func fetchCodeScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Op
 			}
 		}
 	}
-	return true
+	return true, nil
 }
 
-func collectCodeScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) []AdvisoryItem {
+func collectCodeScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error) {
 	var items []AdvisoryItem
 	for page := 1; ; page++ {
 		path := fmt.Sprintf("repos/%s/code-scanning/alerts?state=open&per_page=100&page=%d", repoFullName, page)
 		var alerts []codeScanningAlertResponse
 		if err := restClient.Get(path, &alerts); err != nil {
-			break
+			if isNotFound(err) {
+				break
+			}
+			return items, fmt.Errorf("fetching code scanning alerts for %s (page %d): %w", repoFullName, page, err)
 		}
 		if len(alerts) == 0 {
 			break
@@ -257,18 +265,27 @@ func collectCodeScanningAlertsForRepo(restClient *api.RESTClient, repoFullName s
 			}
 		}
 	}
-	return items
+	return items, nil
 }
 
-func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) {
-	if fetchCodeScanningAlertsOrg(restClient, owner, opts, repoMap) {
+func warnIfVerbose(opts *Options, err error) {
+	if err != nil && opts.Verbose {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", err)
+	}
+}
+
+func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) error {
+	orgHandled, err := fetchCodeScanningAlertsOrg(restClient, owner, opts, repoMap)
+	warnIfVerbose(opts, err)
+	if orgHandled {
 		pb.current.Add(int64(len(allRepos)))
-		return
+		return nil
 	}
 	const concurrency = 10
 	sem := make(chan struct{}, concurrency)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	errs := []error{err}
 	for _, repo := range allRepos {
 		wg.Add(1)
 		sem <- struct{}{}
@@ -276,17 +293,18 @@ func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos 
 			defer wg.Done()
 			defer func() { <-sem }()
 			defer pb.Increment()
-			items := collectCodeScanningAlertsForRepo(restClient, repoFullName, opts)
-			if len(items) > 0 {
-				mu.Lock()
-				for _, item := range items {
-					addToRepoMap(repoMap, item)
-				}
-				mu.Unlock()
+			items, err := collectCodeScanningAlertsForRepo(restClient, repoFullName, opts)
+			warnIfVerbose(opts, err)
+			mu.Lock()
+			defer mu.Unlock()
+			errs = append(errs, err)
+			for _, item := range items {
+				addToRepoMap(repoMap, item)
 			}
 		}(repo)
 	}
 	wg.Wait()
+	return errors.Join(errs...)
 }
 
 func collectSecretScanningAlert(alert secretScanningAlertResponse, repoFullName string, opts *Options) (AdvisoryItem, bool) {
@@ -309,15 +327,19 @@ func collectSecretScanningAlert(alert secretScanningAlertResponse, repoFullName 
 	}, true
 }
 
-func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) bool {
+// fetchSecretScanningAlertsOrg reports (false, nil) when the org-level
+// endpoint is unavailable (404), signalling the caller to fall back to
+// per-repo fetches. Any other error is returned so the caller can surface it
+// instead of silently under-reporting alerts.
+func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error) {
 	for page := 1; ; page++ {
 		path := fmt.Sprintf("orgs/%s/secret-scanning/alerts?state=open&per_page=100&page=%d", org, page)
 		var alerts []secretScanningAlertResponse
 		if err := restClient.Get(path, &alerts); err != nil {
 			if isNotFound(err) {
-				return false
+				return false, nil
 			}
-			break
+			return false, fmt.Errorf("fetching org secret scanning alerts for %s (page %d): %w", org, page, err)
 		}
 		if len(alerts) == 0 {
 			break
@@ -328,16 +350,19 @@ func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *
 			}
 		}
 	}
-	return true
+	return true, nil
 }
 
-func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) []AdvisoryItem {
+func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error) {
 	var items []AdvisoryItem
 	for page := 1; ; page++ {
 		path := fmt.Sprintf("repos/%s/secret-scanning/alerts?state=open&per_page=100&page=%d", repoFullName, page)
 		var alerts []secretScanningAlertResponse
 		if err := restClient.Get(path, &alerts); err != nil {
-			break
+			if isNotFound(err) {
+				break
+			}
+			return items, fmt.Errorf("fetching secret scanning alerts for %s (page %d): %w", repoFullName, page, err)
 		}
 		if len(alerts) == 0 {
 			break
@@ -348,23 +373,26 @@ func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName
 			}
 		}
 	}
-	return items
+	return items, nil
 }
 
-func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) {
+func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) error {
 	// Secret scanning alerts have no severity; skip when severity filter is active
 	if len(*opts.Severities) > 0 {
 		pb.current.Add(int64(len(allRepos)))
-		return
+		return nil
 	}
-	if fetchSecretScanningAlertsOrg(restClient, owner, opts, repoMap) {
+	orgHandled, err := fetchSecretScanningAlertsOrg(restClient, owner, opts, repoMap)
+	warnIfVerbose(opts, err)
+	if orgHandled {
 		pb.current.Add(int64(len(allRepos)))
-		return
+		return nil
 	}
 	const concurrency = 10
 	sem := make(chan struct{}, concurrency)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
+	errs := []error{err}
 	for _, repo := range allRepos {
 		wg.Add(1)
 		sem <- struct{}{}
@@ -372,17 +400,18 @@ func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepo
 			defer wg.Done()
 			defer func() { <-sem }()
 			defer pb.Increment()
-			items := collectSecretScanningAlertsForRepo(restClient, repoFullName, opts)
-			if len(items) > 0 {
-				mu.Lock()
-				for _, item := range items {
-					addToRepoMap(repoMap, item)
-				}
-				mu.Unlock()
+			items, err := collectSecretScanningAlertsForRepo(restClient, repoFullName, opts)
+			warnIfVerbose(opts, err)
+			mu.Lock()
+			defer mu.Unlock()
+			errs = append(errs, err)
+			for _, item := range items {
+				addToRepoMap(repoMap, item)
 			}
 		}(repo)
 	}
 	wg.Wait()
+	return errors.Join(errs...)
 }
 
 func fetchSecurityAdvisories(owner string, opts *Options, pb *ProgressBar) ([]RepositoryItem, error) {
@@ -409,11 +438,16 @@ func fetchSecurityAdvisories(owner string, opts *Options, pb *ProgressBar) ([]Re
 		extraFetches++
 	}
 	pb.AddTotal(len(allRepos) * extraFetches)
+	var errs []error
 	if opts.CodeScanning {
-		fetchCodeScanningAlerts(restClient, owner, allRepos, opts, repoMap, pb)
+		if err := fetchCodeScanningAlerts(restClient, owner, allRepos, opts, repoMap, pb); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	if opts.SecretScanning {
-		fetchSecretScanningAlerts(restClient, owner, allRepos, opts, repoMap, pb)
+		if err := fetchSecretScanningAlerts(restClient, owner, allRepos, opts, repoMap, pb); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	for name := range repoMap {
@@ -438,5 +472,5 @@ func fetchSecurityAdvisories(owner string, opts *Options, pb *ProgressBar) ([]Re
 		repositories = append(repositories, repoMap[name])
 	}
 
-	return repositories, nil
+	return repositories, errors.Join(errs...)
 }

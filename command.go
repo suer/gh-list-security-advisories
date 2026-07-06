@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"runtime/debug"
 	"sync"
 
@@ -40,6 +41,10 @@ func rootCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Suppress the usage dump for errors raised past argument
+			// validation (e.g. a temp-log pointer from run()); it would
+			// otherwise bury that message under a wall of flag help text.
+			cmd.SilenceUsage = true
 			if opts.Show != "" {
 				return showAdvisory(opts.Show, opts)
 			}
@@ -91,9 +96,7 @@ func run(owners []string, opts *Options) error {
 
 			if err != nil {
 				errs = append(errs, err)
-				return
 			}
-
 			allRepositories = append(allRepositories, repositories...)
 		}(owner)
 	}
@@ -101,11 +104,32 @@ func run(owners []string, opts *Options) error {
 	wg.Wait()
 	pb.Stop()
 
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
 	printResult(allRepositories, opts)
 
+	if len(errs) > 0 {
+		joined := errors.Join(errs...)
+		path, writeErr := writeErrorLog(joined)
+		if writeErr != nil {
+			return joined
+		}
+		return fmt.Errorf("some alerts may be missing due to errors; see %s for details", path)
+	}
+
 	return nil
+}
+
+// writeErrorLog writes err to a temp file instead of dumping it to the
+// terminal, since a single rate-limited or unsupported-feature response can
+// fan out into dozens of near-identical per-repository errors that would
+// otherwise bury the successfully fetched results printed above.
+func writeErrorLog(err error) (string, error) {
+	f, createErr := os.CreateTemp("", "gh-list-security-advisories-errors-*.log")
+	if createErr != nil {
+		return "", createErr
+	}
+	defer f.Close()
+	if _, writeErr := f.WriteString(err.Error() + "\n"); writeErr != nil {
+		return "", writeErr
+	}
+	return f.Name(), nil
 }

@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"io"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -224,6 +228,55 @@ func TestCollectSecretScanningAlert(t *testing.T) {
 		opts := &Options{Excludes: &[]string{"owner/repo"}, Severities: &[]string{}}
 		if _, ok := collectSecretScanningAlert(baseAlert, "owner/repo", opts); ok {
 			t.Errorf("expected alert to be excluded")
+		}
+	})
+}
+
+func captureStderr(t *testing.T, f func()) string {
+	t.Helper()
+	original := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() failed: %v", err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = original }()
+
+	f()
+
+	w.Close()
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy() failed: %v", err)
+	}
+	return buf.String()
+}
+
+func TestWarnIfVerbose(t *testing.T) {
+	t.Run("nil error prints nothing even when verbose", func(t *testing.T) {
+		out := captureStderr(t, func() {
+			warnIfVerbose(&Options{Verbose: true}, nil)
+		})
+		if out != "" {
+			t.Errorf("warnIfVerbose(verbose, nil) printed %q, want nothing", out)
+		}
+	})
+
+	t.Run("error is silenced when not verbose", func(t *testing.T) {
+		out := captureStderr(t, func() {
+			warnIfVerbose(&Options{Verbose: false}, errors.New("boom"))
+		})
+		if out != "" {
+			t.Errorf("warnIfVerbose(non-verbose, err) printed %q, want nothing", out)
+		}
+	})
+
+	t.Run("error is printed to stderr when verbose", func(t *testing.T) {
+		out := captureStderr(t, func() {
+			warnIfVerbose(&Options{Verbose: true}, errors.New("boom"))
+		})
+		if !strings.Contains(out, "boom") {
+			t.Errorf("warnIfVerbose(verbose, err) printed %q, want it to contain %q", out, "boom")
 		}
 	})
 }
