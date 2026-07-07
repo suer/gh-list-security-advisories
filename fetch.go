@@ -57,6 +57,11 @@ const (
 	AlertTypeSecretScanning = "secret-scanning"
 )
 
+const (
+	perPage     = 100
+	concurrency = 10
+)
+
 type RepositoryItem struct {
 	Name          string
 	AdvisoryItems []AdvisoryItem
@@ -354,7 +359,6 @@ func fetchAlertsWithFallback(
 		pb.IncrementBy(len(allRepos))
 		return err
 	}
-	const concurrency = 10
 	sem := make(chan struct{}, concurrency)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -385,7 +389,7 @@ func fetchAlertsWithFallback(
 // fetches. Any other error is returned so the caller can surface it instead
 // of silently under-reporting alerts.
 func fetchCodeScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error) {
-	urlPathFmt := fmt.Sprintf("orgs/%s/code-scanning/alerts?state=open&per_page=100&page=%%d", org)
+	urlPathFmt := fmt.Sprintf("orgs/%s/code-scanning/alerts?state=open&per_page=%d&page=%%d", org, perPage)
 	description := fmt.Sprintf("org code scanning alerts for %s", org)
 	return fetchAlertsOrgPaginated(restClient, urlPathFmt, description, repoMap, func(alert codeScanningAlertResponse) (AdvisoryItem, bool, error) {
 		return collectCodeScanningAlert(alert, alert.Repository.FullName, opts)
@@ -393,7 +397,7 @@ func fetchCodeScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Op
 }
 
 func collectCodeScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error) {
-	urlPathFmt := fmt.Sprintf("repos/%s/code-scanning/alerts?state=open&per_page=100&page=%%d", repoFullName)
+	urlPathFmt := fmt.Sprintf("repos/%s/code-scanning/alerts?state=open&per_page=%d&page=%%d", repoFullName, perPage)
 	description := fmt.Sprintf("code scanning alerts for %s", repoFullName)
 	return fetchAlertsForRepoPaginated(restClient, urlPathFmt, description, func(alert codeScanningAlertResponse) (AdvisoryItem, bool, error) {
 		return collectCodeScanningAlert(alert, repoFullName, opts)
@@ -409,7 +413,7 @@ func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos 
 // per-repo fetches. Any other error is returned so the caller can surface it
 // instead of silently under-reporting alerts.
 func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error) {
-	urlPathFmt := fmt.Sprintf("orgs/%s/secret-scanning/alerts?state=open&per_page=100&page=%%d", org)
+	urlPathFmt := fmt.Sprintf("orgs/%s/secret-scanning/alerts?state=open&per_page=%d&page=%%d", org, perPage)
 	description := fmt.Sprintf("org secret scanning alerts for %s", org)
 	return fetchAlertsOrgPaginated(restClient, urlPathFmt, description, repoMap, func(alert secretScanningAlertResponse) (AdvisoryItem, bool, error) {
 		return collectSecretScanningAlert(alert, alert.Repository.FullName, opts)
@@ -417,7 +421,7 @@ func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *
 }
 
 func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error) {
-	urlPathFmt := fmt.Sprintf("repos/%s/secret-scanning/alerts?state=open&per_page=100&page=%%d", repoFullName)
+	urlPathFmt := fmt.Sprintf("repos/%s/secret-scanning/alerts?state=open&per_page=%d&page=%%d", repoFullName, perPage)
 	description := fmt.Sprintf("secret scanning alerts for %s", repoFullName)
 	return fetchAlertsForRepoPaginated(restClient, urlPathFmt, description, func(alert secretScanningAlertResponse) (AdvisoryItem, bool, error) {
 		return collectSecretScanningAlert(alert, repoFullName, opts)
