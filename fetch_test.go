@@ -137,9 +137,12 @@ func TestCollectCodeScanningAlert(t *testing.T) {
 
 	t.Run("included alert is mapped", func(t *testing.T) {
 		opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
-		item, ok := collectCodeScanningAlert(baseAlert, "owner/repo", opts)
+		item, ok, err := collectCodeScanningAlert(baseAlert, "owner/repo", opts)
 		if !ok {
 			t.Fatalf("expected alert to be included")
+		}
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
 		want := AdvisoryItem{
 			AlertType:      "code-scanning",
@@ -157,25 +160,28 @@ func TestCollectCodeScanningAlert(t *testing.T) {
 
 	t.Run("excluded repository is dropped", func(t *testing.T) {
 		opts := &Options{Excludes: &[]string{"owner/repo"}, Severities: &[]string{}}
-		if _, ok := collectCodeScanningAlert(baseAlert, "owner/repo", opts); ok {
+		if _, ok, _ := collectCodeScanningAlert(baseAlert, "owner/repo", opts); ok {
 			t.Errorf("expected alert to be excluded")
 		}
 	})
 
 	t.Run("filtered severity is dropped", func(t *testing.T) {
 		opts := &Options{Excludes: &[]string{}, Severities: &[]string{"LOW"}}
-		if _, ok := collectCodeScanningAlert(baseAlert, "owner/repo", opts); ok {
+		if _, ok, _ := collectCodeScanningAlert(baseAlert, "owner/repo", opts); ok {
 			t.Errorf("expected alert to be filtered out by severity")
 		}
 	})
 
-	t.Run("invalid created_at falls back to zero time", func(t *testing.T) {
+	t.Run("invalid created_at is reported as an error but the alert is kept", func(t *testing.T) {
 		opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
 		alert := baseAlert
 		alert.CreatedAt = "not-a-time"
-		item, ok := collectCodeScanningAlert(alert, "owner/repo", opts)
+		item, ok, err := collectCodeScanningAlert(alert, "owner/repo", opts)
 		if !ok {
 			t.Fatalf("expected alert to be included")
+		}
+		if err == nil {
+			t.Fatalf("expected an error for an unparsable created_at")
 		}
 		if !item.CreatedAt.IsZero() {
 			t.Errorf("CreatedAt = %v, want zero value", item.CreatedAt)
@@ -193,9 +199,12 @@ func TestCollectSecretScanningAlert(t *testing.T) {
 
 	t.Run("included alert is mapped", func(t *testing.T) {
 		opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
-		item, ok := collectSecretScanningAlert(baseAlert, "owner/repo", opts)
+		item, ok, err := collectSecretScanningAlert(baseAlert, "owner/repo", opts)
 		if !ok {
 			t.Fatalf("expected alert to be included")
+		}
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
 		want := AdvisoryItem{
 			AlertType:      "secret-scanning",
@@ -215,9 +224,12 @@ func TestCollectSecretScanningAlert(t *testing.T) {
 		opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
 		alert := baseAlert
 		alert.SecretTypeDisplayName = ""
-		item, ok := collectSecretScanningAlert(alert, "owner/repo", opts)
+		item, ok, err := collectSecretScanningAlert(alert, "owner/repo", opts)
 		if !ok {
 			t.Fatalf("expected alert to be included")
+		}
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
 		if item.Summary != "aws_key" {
 			t.Errorf("Summary = %q, want %q", item.Summary, "aws_key")
@@ -226,8 +238,24 @@ func TestCollectSecretScanningAlert(t *testing.T) {
 
 	t.Run("excluded repository is dropped", func(t *testing.T) {
 		opts := &Options{Excludes: &[]string{"owner/repo"}, Severities: &[]string{}}
-		if _, ok := collectSecretScanningAlert(baseAlert, "owner/repo", opts); ok {
+		if _, ok, _ := collectSecretScanningAlert(baseAlert, "owner/repo", opts); ok {
 			t.Errorf("expected alert to be excluded")
+		}
+	})
+
+	t.Run("invalid created_at is reported as an error but the alert is kept", func(t *testing.T) {
+		opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
+		alert := baseAlert
+		alert.CreatedAt = "not-a-time"
+		item, ok, err := collectSecretScanningAlert(alert, "owner/repo", opts)
+		if !ok {
+			t.Fatalf("expected alert to be included")
+		}
+		if err == nil {
+			t.Fatalf("expected an error for an unparsable created_at")
+		}
+		if !item.CreatedAt.IsZero() {
+			t.Errorf("CreatedAt = %v, want zero value", item.CreatedAt)
 		}
 	})
 }
