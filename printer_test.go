@@ -52,8 +52,14 @@ func TestPrintLine(t *testing.T) {
 
 	// Widths equal to each field's own length so padding is zero, keeping the
 	// expected output simple to compute by hand.
+	widths := columnWidths{
+		alertType:  len(ai.AlertType),
+		alertLink:  len(alertLinkRawText(ai)),
+		identifier: len(ai.Identifier),
+		severity:   len(ai.Severity),
+	}
 	out := captureStdout(t, func() {
-		ai.printLine(len(ai.AlertType), len(alertLinkRawText(ai)), len(ai.Identifier), len(ai.Severity), formatter)
+		ai.printLine(widths, formatter)
 	})
 
 	want := "dependabot  #1  GHSA-a  HIGH  2026-01-02 summary\n"

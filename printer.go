@@ -11,21 +11,28 @@ func alertLinkRawText(ai *AdvisoryItem) string {
 	return fmt.Sprintf("#%d", ai.AlertNumber)
 }
 
-func (ai *AdvisoryItem) printLine(alertTypeWidth, dependabotLinkWidth, identifierWidth, severityWidth int, formatter Formatter) {
+type columnWidths struct {
+	alertType  int
+	alertLink  int
+	identifier int
+	severity   int
+}
+
+func (ai *AdvisoryItem) printLine(widths columnWidths, formatter Formatter) {
 	alertType := formatter.FormatAlertType(ai)
-	alertTypePadding := alertTypeWidth - len(ai.AlertType)
-	dependabotLink := formatter.FormatAlertLink(ai)
-	dependabotLinkPadding := dependabotLinkWidth - len(alertLinkRawText(ai))
+	alertTypePadding := widths.alertType - len(ai.AlertType)
+	alertLink := formatter.FormatAlertLink(ai)
+	alertLinkPadding := widths.alertLink - len(alertLinkRawText(ai))
 	identifier := formatter.FormatIdentifier(ai)
-	identifierPadding := identifierWidth - len(ai.Identifier)
+	identifierPadding := widths.identifier - len(ai.Identifier)
 	severity := formatter.FormatSeverity(ai)
-	severityPadding := severityWidth - len(ai.Severity)
+	severityPadding := widths.severity - len(ai.Severity)
 	createdAt := formatter.FormatCreatedAt(ai)
 	summary := formatter.FormatSummary(ai)
 
 	fmt.Printf("%s%-*s %s%-*s %s%-*s %s%-*s %s %s\n",
 		alertType, alertTypePadding+1, "",
-		dependabotLink, dependabotLinkPadding+1, "",
+		alertLink, alertLinkPadding+1, "",
 		identifier, identifierPadding+1, "",
 		severity, severityPadding+1, "",
 		createdAt,
@@ -35,30 +42,27 @@ func (ai *AdvisoryItem) printLine(alertTypeWidth, dependabotLinkWidth, identifie
 func (ri *RepositoryItem) printList(opts *Options) {
 	formatter := NewFormatter(opts.NoColor)
 
-	alertTypeWidth := 0
-	dependabotLinkWidth := 0
-	identifierWidth := 0
-	severityWidth := 0
+	var widths columnWidths
 
 	for _, advisory := range ri.AdvisoryItems {
-		if len(advisory.AlertType) > alertTypeWidth {
-			alertTypeWidth = len(advisory.AlertType)
+		if len(advisory.AlertType) > widths.alertType {
+			widths.alertType = len(advisory.AlertType)
 		}
-		if l := len(alertLinkRawText(&advisory)); l > dependabotLinkWidth {
-			dependabotLinkWidth = l
+		if l := len(alertLinkRawText(&advisory)); l > widths.alertLink {
+			widths.alertLink = l
 		}
-		if len(advisory.Identifier) > identifierWidth {
-			identifierWidth = len(advisory.Identifier)
+		if len(advisory.Identifier) > widths.identifier {
+			widths.identifier = len(advisory.Identifier)
 		}
-		if len(advisory.Severity) > severityWidth {
-			severityWidth = len(advisory.Severity)
+		if len(advisory.Severity) > widths.severity {
+			widths.severity = len(advisory.Severity)
 		}
 	}
 
 	fmt.Printf("# %s\n", formatter.FormatRepositoryName(ri.Name))
 
 	for _, advisory := range ri.AdvisoryItems {
-		advisory.printLine(alertTypeWidth, dependabotLinkWidth, identifierWidth, severityWidth, formatter)
+		advisory.printLine(widths, formatter)
 	}
 }
 
