@@ -11,7 +11,6 @@ import (
 )
 
 type Options struct {
-	Version        bool
 	NoColor        bool
 	Verbose        bool
 	Excludes       []string
@@ -24,23 +23,19 @@ type Options struct {
 
 func rootCmd() *cobra.Command {
 	opts := &Options{}
+	version := "unknown"
+	if info, ok := debug.ReadBuildInfo(); ok {
+		version = info.Main.Version
+	}
 	cmd := &cobra.Command{
 		Use:           "gh list-security-advisories <owner> [<owner>...]",
 		Short:         "List security advisories for one or more owners' repositories",
+		Version:       version,
 		SilenceErrors: true,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if opts.Version {
-				return nil
-			}
-			if opts.Show != "" {
-				return nil
-			}
-			if len(args) < 1 {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if opts.Show == "" && len(args) < 1 {
 				return errors.New("requires at least 1 owner argument")
 			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
 			// Suppress the usage dump for errors raised past argument
 			// validation (e.g. a temp-log pointer from run()); it would
 			// otherwise bury that message under a wall of flag help text.
@@ -48,12 +43,11 @@ func rootCmd() *cobra.Command {
 			if opts.Show != "" {
 				return showAdvisory(opts.Show, opts)
 			}
-			owners := args
-			return run(owners, opts)
+			return run(args, opts)
 		},
 	}
+	cmd.SetVersionTemplate("{{.Version}}\n")
 
-	cmd.Flags().BoolVar(&opts.Version, "version", false, "show version")
 	cmd.Flags().StringArrayVarP(&opts.Excludes, "exclude", "e", []string{}, "exclude repositories")
 	cmd.Flags().IntVarP(&opts.Limit, "limit", "l", 100, "Max number of vulnerability alerts to fetch per repository")
 	cmd.Flags().StringArrayVarP(&opts.Severities, "severity", "s", []string{}, "filter by severity (CRITICAL, HIGH, MODERATE, LOW)")
@@ -63,19 +57,13 @@ func rootCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.CodeScanning, "codescanning", false, "also collect code scanning alerts")
 	cmd.Flags().BoolVar(&opts.SecretScanning, "secretscanning", false, "also collect secret scanning alerts")
 
+	cmd.InitDefaultVersionFlag()
+	cmd.Flags().Lookup("version").Usage = "show version"
+
 	return cmd
 }
 
 func run(owners []string, opts *Options) error {
-	if opts.Version {
-		if info, ok := debug.ReadBuildInfo(); ok {
-			fmt.Println(info.Main.Version)
-			return nil
-		} else {
-			return errors.New("could not read build info")
-		}
-	}
-
 	pb := NewProgressBar()
 	pb.Start()
 
