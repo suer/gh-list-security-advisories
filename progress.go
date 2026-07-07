@@ -9,6 +9,11 @@ import (
 	"github.com/mattn/go-isatty"
 )
 
+const (
+	barWidth       = 30
+	clearLineWidth = 60
+)
+
 type ProgressBar struct {
 	total   atomic.Int64
 	current atomic.Int64
@@ -44,12 +49,11 @@ func (p *ProgressBar) render(frame string) {
 		fmt.Fprintf(os.Stderr, "\r%s Fetching repositories...", frame)
 		return
 	}
-	const width = 30
-	filled := int(float64(current) / float64(total) * width)
-	if filled > width {
-		filled = width
+	filled := int(float64(current) / float64(total) * barWidth)
+	if filled > barWidth {
+		filled = barWidth
 	}
-	bar := make([]rune, width)
+	bar := make([]rune, barWidth)
 	for i := range bar {
 		if i < filled {
 			bar[i] = '█'
@@ -71,7 +75,7 @@ func (p *ProgressBar) Start() {
 		for {
 			select {
 			case <-p.stop:
-				fmt.Fprintf(os.Stderr, "\r%-60s\r", "")
+				fmt.Fprintf(os.Stderr, "\r%-*s\r", clearLineWidth, "")
 				return
 			default:
 				p.render(frames[i%len(frames)])
