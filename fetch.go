@@ -50,8 +50,6 @@ type query struct {
 	Search SearchResultItemConnection `graphql:"search(query: $searchQuery, type: REPOSITORY, first: 100, after: $cursor)"`
 }
 
-// Alert type identifiers used across AdvisoryItem.AlertType, Formatter
-// implementations, and the fetch/collect functions that populate them.
 const (
 	AlertTypeDependabot     = "dependabot"
 	AlertTypeMalware        = "malware"
@@ -65,15 +63,10 @@ type RepositoryItem struct {
 }
 
 type AdvisoryItem struct {
-	AlertType   string
-	AlertNumber int
-	// Identifier holds the alert's primary identifier, whose meaning depends
-	// on AlertType: a GHSA ID for AlertTypeDependabot/AlertTypeMalware, a
-	// code scanning rule ID for AlertTypeCodeScanning, or a secret type for
-	// AlertTypeSecretScanning.
-	Identifier string
-	Summary    string
-	// Severity is "-" for AlertTypeSecretScanning alerts, which have no severity.
+	AlertType      string
+	AlertNumber    int
+	Identifier     string
+	Summary        string
 	Severity       string
 	CreatedAt      time.Time
 	RepositoryName string
