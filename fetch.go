@@ -199,15 +199,22 @@ func fetchDependabotAlerts(gqlClient *api.GraphQLClient, owner string, opts *Opt
 	return allRepoNames, nil
 }
 
-func collectCodeScanningAlert(alert codeScanningAlertResponse, repoFullName string, opts *Options) (AdvisoryItem, bool) {
+// collectCodeScanningAlert reports created-at parse failures as an error
+// rather than silently falling back to the zero time, but still returns the
+// item (ok=true) so a single unparsable timestamp doesn't drop the alert
+// entirely; callers are expected to surface the error alongside the item.
+func collectCodeScanningAlert(alert codeScanningAlertResponse, repoFullName string, opts *Options) (AdvisoryItem, bool, error) {
 	severity := mapCodeScanningSeverity(alert.Rule.SecuritySeverityLevel, alert.Rule.Severity)
 	if shouldExcludeRepository(repoFullName, opts.Excludes) {
-		return AdvisoryItem{}, false
+		return AdvisoryItem{}, false, nil
 	}
 	if !shouldIncludeSeverity(severity, opts.Severities) {
-		return AdvisoryItem{}, false
+		return AdvisoryItem{}, false, nil
 	}
-	createdAt, _ := time.Parse(time.RFC3339, alert.CreatedAt)
+	createdAt, err := time.Parse(time.RFC3339, alert.CreatedAt)
+	if err != nil {
+		err = fmt.Errorf("parsing created_at %q for code-scanning alert #%d in %s: %w", alert.CreatedAt, alert.Number, repoFullName, err)
+	}
 	return AdvisoryItem{
 		AlertType:      "code-scanning",
 		AlertNumber:    alert.Number,
@@ -216,7 +223,7 @@ func collectCodeScanningAlert(alert codeScanningAlertResponse, repoFullName stri
 		Severity:       severity,
 		CreatedAt:      createdAt,
 		RepositoryName: repoFullName,
-	}, true
+	}, true, err
 }
 
 // fetchCodeScanningAlertsOrg reports (false, nil) when the org-level endpoint
@@ -224,6 +231,7 @@ func collectCodeScanningAlert(alert codeScanningAlertResponse, repoFullName stri
 // fetches. Any other error is returned so the caller can surface it instead
 // of silently under-reporting alerts.
 func fetchCodeScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error) {
+	var errs []error
 	for page := 1; ; page++ {
 		path := fmt.Sprintf("orgs/%s/code-scanning/alerts?state=open&per_page=100&page=%d", org, page)
 		var alerts []codeScanningAlertResponse
@@ -237,16 +245,21 @@ func fetchCodeScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Op
 			break
 		}
 		for _, alert := range alerts {
-			if item, ok := collectCodeScanningAlert(alert, alert.Repository.FullName, opts); ok {
+			item, ok, err := collectCodeScanningAlert(alert, alert.Repository.FullName, opts)
+			if err != nil {
+				errs = append(errs, err)
+			}
+			if ok {
 				addToRepoMap(repoMap, item)
 			}
 		}
 	}
-	return true, nil
+	return true, errors.Join(errs...)
 }
 
 func collectCodeScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error) {
 	var items []AdvisoryItem
+	var errs []error
 	for page := 1; ; page++ {
 		path := fmt.Sprintf("repos/%s/code-scanning/alerts?state=open&per_page=100&page=%d", repoFullName, page)
 		var alerts []codeScanningAlertResponse
@@ -260,12 +273,16 @@ func collectCodeScanningAlertsForRepo(restClient *api.RESTClient, repoFullName s
 			break
 		}
 		for _, alert := range alerts {
-			if item, ok := collectCodeScanningAlert(alert, repoFullName, opts); ok {
+			item, ok, err := collectCodeScanningAlert(alert, repoFullName, opts)
+			if err != nil {
+				errs = append(errs, err)
+			}
+			if ok {
 				items = append(items, item)
 			}
 		}
 	}
-	return items, nil
+	return items, errors.Join(errs...)
 }
 
 func warnIfVerbose(opts *Options, err error) {
@@ -279,7 +296,7 @@ func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos 
 	warnIfVerbose(opts, err)
 	if orgHandled {
 		pb.current.Add(int64(len(allRepos)))
-		return nil
+		return err
 	}
 	const concurrency = 10
 	sem := make(chan struct{}, concurrency)
@@ -307,15 +324,22 @@ func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos 
 	return errors.Join(errs...)
 }
 
-func collectSecretScanningAlert(alert secretScanningAlertResponse, repoFullName string, opts *Options) (AdvisoryItem, bool) {
+// collectSecretScanningAlert reports created-at parse failures as an error
+// rather than silently falling back to the zero time, but still returns the
+// item (ok=true) so a single unparsable timestamp doesn't drop the alert
+// entirely; callers are expected to surface the error alongside the item.
+func collectSecretScanningAlert(alert secretScanningAlertResponse, repoFullName string, opts *Options) (AdvisoryItem, bool, error) {
 	if shouldExcludeRepository(repoFullName, opts.Excludes) {
-		return AdvisoryItem{}, false
+		return AdvisoryItem{}, false, nil
 	}
 	displayName := alert.SecretTypeDisplayName
 	if displayName == "" {
 		displayName = alert.SecretType
 	}
-	createdAt, _ := time.Parse(time.RFC3339, alert.CreatedAt)
+	createdAt, err := time.Parse(time.RFC3339, alert.CreatedAt)
+	if err != nil {
+		err = fmt.Errorf("parsing created_at %q for secret-scanning alert #%d in %s: %w", alert.CreatedAt, alert.Number, repoFullName, err)
+	}
 	return AdvisoryItem{
 		AlertType:      "secret-scanning",
 		AlertNumber:    alert.Number,
@@ -324,7 +348,7 @@ func collectSecretScanningAlert(alert secretScanningAlertResponse, repoFullName 
 		Severity:       "-",
 		CreatedAt:      createdAt,
 		RepositoryName: repoFullName,
-	}, true
+	}, true, err
 }
 
 // fetchSecretScanningAlertsOrg reports (false, nil) when the org-level
@@ -332,6 +356,7 @@ func collectSecretScanningAlert(alert secretScanningAlertResponse, repoFullName 
 // per-repo fetches. Any other error is returned so the caller can surface it
 // instead of silently under-reporting alerts.
 func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error) {
+	var errs []error
 	for page := 1; ; page++ {
 		path := fmt.Sprintf("orgs/%s/secret-scanning/alerts?state=open&per_page=100&page=%d", org, page)
 		var alerts []secretScanningAlertResponse
@@ -345,16 +370,21 @@ func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *
 			break
 		}
 		for _, alert := range alerts {
-			if item, ok := collectSecretScanningAlert(alert, alert.Repository.FullName, opts); ok {
+			item, ok, err := collectSecretScanningAlert(alert, alert.Repository.FullName, opts)
+			if err != nil {
+				errs = append(errs, err)
+			}
+			if ok {
 				addToRepoMap(repoMap, item)
 			}
 		}
 	}
-	return true, nil
+	return true, errors.Join(errs...)
 }
 
 func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error) {
 	var items []AdvisoryItem
+	var errs []error
 	for page := 1; ; page++ {
 		path := fmt.Sprintf("repos/%s/secret-scanning/alerts?state=open&per_page=100&page=%d", repoFullName, page)
 		var alerts []secretScanningAlertResponse
@@ -368,12 +398,16 @@ func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName
 			break
 		}
 		for _, alert := range alerts {
-			if item, ok := collectSecretScanningAlert(alert, repoFullName, opts); ok {
+			item, ok, err := collectSecretScanningAlert(alert, repoFullName, opts)
+			if err != nil {
+				errs = append(errs, err)
+			}
+			if ok {
 				items = append(items, item)
 			}
 		}
 	}
-	return items, nil
+	return items, errors.Join(errs...)
 }
 
 func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) error {
@@ -386,7 +420,7 @@ func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepo
 	warnIfVerbose(opts, err)
 	if orgHandled {
 		pb.current.Add(int64(len(allRepos)))
-		return nil
+		return err
 	}
 	const concurrency = 10
 	sem := make(chan struct{}, concurrency)
