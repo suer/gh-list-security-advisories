@@ -65,8 +65,8 @@ func showAdvisory(ghsaId string, opts *Options) error {
 	}
 
 	formatter := NewFormatter(opts.NoColor)
-	item := &AdvisoryItem{GhsaId: ghsaId, Severity: advisory.Severity}
-	fmt.Printf("GHSA ID: %s\n", formatter.FormatGhsaId(item))
+	item := &AdvisoryItem{Identifier: ghsaId, Severity: advisory.Severity}
+	fmt.Printf("GHSA ID: %s\n", formatter.FormatIdentifier(item))
 	fmt.Printf("Severity: %s\n", formatter.FormatSeverity(item))
 	fmt.Printf("Summary: %s\n", advisory.Summary)
 	fmt.Printf("Published: %s\n", advisory.PublishedAt)

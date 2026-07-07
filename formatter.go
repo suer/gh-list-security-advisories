@@ -9,7 +9,7 @@ import (
 
 type Formatter interface {
 	FormatAlertType(ai *AdvisoryItem) string
-	FormatGhsaId(ai *AdvisoryItem) string
+	FormatIdentifier(ai *AdvisoryItem) string
 	FormatAlertLink(ai *AdvisoryItem) string
 	FormatSeverity(ai *AdvisoryItem) string
 	FormatCreatedAt(ai *AdvisoryItem) string
@@ -32,7 +32,7 @@ func (cf *ColorFormatter) FormatAlertType(ai *AdvisoryItem) string {
 	}
 }
 
-func (cf *ColorFormatter) FormatGhsaId(ai *AdvisoryItem) string {
+func (cf *ColorFormatter) FormatIdentifier(ai *AdvisoryItem) string {
 	var url string
 	switch ai.AlertType {
 	case "code-scanning":
@@ -40,11 +40,11 @@ func (cf *ColorFormatter) FormatGhsaId(ai *AdvisoryItem) string {
 	case "secret-scanning":
 		url = fmt.Sprintf("https://github.com/%s/security/secret-scanning/%d", ai.RepositoryName, ai.AlertNumber)
 	case "malware", "dependabot":
-		url = fmt.Sprintf("https://github.com/advisories/%s", ai.GhsaId)
+		url = fmt.Sprintf("https://github.com/advisories/%s", ai.Identifier)
 	default:
-		url = fmt.Sprintf("https://github.com/advisories/%s", ai.GhsaId)
+		url = fmt.Sprintf("https://github.com/advisories/%s", ai.Identifier)
 	}
-	return aurora.Cyan(ai.GhsaId).Hyperlink(url).String()
+	return aurora.Cyan(ai.Identifier).Hyperlink(url).String()
 }
 
 func alertLinkURL(ai *AdvisoryItem) string {
@@ -101,8 +101,8 @@ func (ncf *NoColorFormatter) FormatAlertType(ai *AdvisoryItem) string {
 	return ai.AlertType
 }
 
-func (ncf *NoColorFormatter) FormatGhsaId(ai *AdvisoryItem) string {
-	return ai.GhsaId
+func (ncf *NoColorFormatter) FormatIdentifier(ai *AdvisoryItem) string {
+	return ai.Identifier
 }
 
 func (ncf *NoColorFormatter) FormatAlertLink(ai *AdvisoryItem) string {

@@ -42,7 +42,7 @@ func TestPrintLine(t *testing.T) {
 	ai := &AdvisoryItem{
 		AlertType:      "dependabot",
 		AlertNumber:    1,
-		GhsaId:         "GHSA-a",
+		Identifier:     "GHSA-a",
 		Summary:        "summary",
 		Severity:       "HIGH",
 		CreatedAt:      time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
@@ -53,7 +53,7 @@ func TestPrintLine(t *testing.T) {
 	// Widths equal to each field's own length so padding is zero, keeping the
 	// expected output simple to compute by hand.
 	out := captureStdout(t, func() {
-		ai.printLine(len(ai.AlertType), len(alertLinkRawText(ai)), len(ai.GhsaId), len(ai.Severity), formatter)
+		ai.printLine(len(ai.AlertType), len(alertLinkRawText(ai)), len(ai.Identifier), len(ai.Severity), formatter)
 	})
 
 	want := "dependabot  #1  GHSA-a  HIGH  2026-01-02 summary\n"
@@ -69,7 +69,7 @@ func TestPrintList(t *testing.T) {
 			{
 				AlertType:      "code-scanning",
 				AlertNumber:    1,
-				GhsaId:         "GHSA-a",
+				Identifier:     "GHSA-a",
 				Summary:        "short one",
 				Severity:       "HIGH",
 				CreatedAt:      time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
@@ -78,7 +78,7 @@ func TestPrintList(t *testing.T) {
 			{
 				AlertType:      "dependabot",
 				AlertNumber:    123,
-				GhsaId:         "GHSA-longer-id",
+				Identifier:     "GHSA-longer-id",
 				Summary:        "another one",
 				Severity:       "MODERATE",
 				CreatedAt:      time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC),
