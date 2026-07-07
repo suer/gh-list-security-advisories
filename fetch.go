@@ -89,8 +89,8 @@ type secretScanningAlertResponse struct {
 	} `json:"repository"`
 }
 
-func shouldExcludeRepository(repoFullName string, excludes *[]string) bool {
-	for _, exclude := range *excludes {
+func shouldExcludeRepository(repoFullName string, excludes []string) bool {
+	for _, exclude := range excludes {
 		if strings.Contains(repoFullName, exclude) {
 			return true
 		}
@@ -98,11 +98,11 @@ func shouldExcludeRepository(repoFullName string, excludes *[]string) bool {
 	return false
 }
 
-func shouldIncludeSeverity(severity string, severities *[]string) bool {
-	if len(*severities) == 0 {
+func shouldIncludeSeverity(severity string, severities []string) bool {
+	if len(severities) == 0 {
 		return true
 	}
-	for _, s := range *severities {
+	for _, s := range severities {
 		if strings.EqualFold(s, severity) {
 			return true
 		}
@@ -419,7 +419,7 @@ func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName
 
 func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) error {
 	// Secret scanning alerts have no severity; skip when severity filter is active
-	if len(*opts.Severities) > 0 {
+	if len(opts.Severities) > 0 {
 		pb.current.Add(int64(len(allRepos)))
 		return nil
 	}

@@ -14,16 +14,16 @@ type Options struct {
 	Version        bool
 	NoColor        bool
 	Verbose        bool
-	Excludes       *[]string
+	Excludes       []string
 	Limit          int
-	Severities     *[]string
+	Severities     []string
 	Show           string
 	CodeScanning   bool
 	SecretScanning bool
 }
 
 func rootCmd() *cobra.Command {
-	opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
+	opts := &Options{}
 	cmd := &cobra.Command{
 		Use:           "gh list-security-advisories <owner> [<owner>...]",
 		Short:         "List security advisories for one or more owners' repositories",
@@ -54,9 +54,9 @@ func rootCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&opts.Version, "version", false, "show version")
-	cmd.Flags().StringArrayVarP(opts.Excludes, "exclude", "e", []string{}, "exclude repositories")
+	cmd.Flags().StringArrayVarP(&opts.Excludes, "exclude", "e", []string{}, "exclude repositories")
 	cmd.Flags().IntVarP(&opts.Limit, "limit", "l", 100, "Max number of vulnerability alerts to fetch per repository")
-	cmd.Flags().StringArrayVarP(opts.Severities, "severity", "s", []string{}, "filter by severity (CRITICAL, HIGH, MODERATE, LOW)")
+	cmd.Flags().StringArrayVarP(&opts.Severities, "severity", "s", []string{}, "filter by severity (CRITICAL, HIGH, MODERATE, LOW)")
 	cmd.Flags().StringVar(&opts.Show, "show", "", "show details of a specific GHSA ID")
 	cmd.Flags().BoolVar(&opts.NoColor, "no-color", false, "disable color output")
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", false, "verbose output")

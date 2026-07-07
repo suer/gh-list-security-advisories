@@ -29,7 +29,7 @@ func TestShouldExcludeRepository(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := shouldExcludeRepository(tt.repoFullName, &tt.excludes); got != tt.want {
+			if got := shouldExcludeRepository(tt.repoFullName, tt.excludes); got != tt.want {
 				t.Errorf("shouldExcludeRepository(%q, %v) = %v, want %v", tt.repoFullName, tt.excludes, got, tt.want)
 			}
 		})
@@ -51,7 +51,7 @@ func TestShouldIncludeSeverity(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := shouldIncludeSeverity(tt.severity, &tt.severities); got != tt.want {
+			if got := shouldIncludeSeverity(tt.severity, tt.severities); got != tt.want {
 				t.Errorf("shouldIncludeSeverity(%q, %v) = %v, want %v", tt.severity, tt.severities, got, tt.want)
 			}
 		})
@@ -136,7 +136,7 @@ func TestCollectCodeScanningAlert(t *testing.T) {
 	baseAlert.Rule.SecuritySeverityLevel = "high"
 
 	t.Run("included alert is mapped", func(t *testing.T) {
-		opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
+		opts := &Options{Excludes: []string{}, Severities: []string{}}
 		item, ok, err := collectCodeScanningAlert(baseAlert, "owner/repo", opts)
 		if !ok {
 			t.Fatalf("expected alert to be included")
@@ -159,21 +159,21 @@ func TestCollectCodeScanningAlert(t *testing.T) {
 	})
 
 	t.Run("excluded repository is dropped", func(t *testing.T) {
-		opts := &Options{Excludes: &[]string{"owner/repo"}, Severities: &[]string{}}
+		opts := &Options{Excludes: []string{"owner/repo"}, Severities: []string{}}
 		if _, ok, _ := collectCodeScanningAlert(baseAlert, "owner/repo", opts); ok {
 			t.Errorf("expected alert to be excluded")
 		}
 	})
 
 	t.Run("filtered severity is dropped", func(t *testing.T) {
-		opts := &Options{Excludes: &[]string{}, Severities: &[]string{"LOW"}}
+		opts := &Options{Excludes: []string{}, Severities: []string{"LOW"}}
 		if _, ok, _ := collectCodeScanningAlert(baseAlert, "owner/repo", opts); ok {
 			t.Errorf("expected alert to be filtered out by severity")
 		}
 	})
 
 	t.Run("invalid created_at is reported as an error but the alert is kept", func(t *testing.T) {
-		opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
+		opts := &Options{Excludes: []string{}, Severities: []string{}}
 		alert := baseAlert
 		alert.CreatedAt = "not-a-time"
 		item, ok, err := collectCodeScanningAlert(alert, "owner/repo", opts)
@@ -198,7 +198,7 @@ func TestCollectSecretScanningAlert(t *testing.T) {
 	}
 
 	t.Run("included alert is mapped", func(t *testing.T) {
-		opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
+		opts := &Options{Excludes: []string{}, Severities: []string{}}
 		item, ok, err := collectSecretScanningAlert(baseAlert, "owner/repo", opts)
 		if !ok {
 			t.Fatalf("expected alert to be included")
@@ -221,7 +221,7 @@ func TestCollectSecretScanningAlert(t *testing.T) {
 	})
 
 	t.Run("falls back to secret type when display name is empty", func(t *testing.T) {
-		opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
+		opts := &Options{Excludes: []string{}, Severities: []string{}}
 		alert := baseAlert
 		alert.SecretTypeDisplayName = ""
 		item, ok, err := collectSecretScanningAlert(alert, "owner/repo", opts)
@@ -237,14 +237,14 @@ func TestCollectSecretScanningAlert(t *testing.T) {
 	})
 
 	t.Run("excluded repository is dropped", func(t *testing.T) {
-		opts := &Options{Excludes: &[]string{"owner/repo"}, Severities: &[]string{}}
+		opts := &Options{Excludes: []string{"owner/repo"}, Severities: []string{}}
 		if _, ok, _ := collectSecretScanningAlert(baseAlert, "owner/repo", opts); ok {
 			t.Errorf("expected alert to be excluded")
 		}
 	})
 
 	t.Run("invalid created_at is reported as an error but the alert is kept", func(t *testing.T) {
-		opts := &Options{Excludes: &[]string{}, Severities: &[]string{}}
+		opts := &Options{Excludes: []string{}, Severities: []string{}}
 		alert := baseAlert
 		alert.CreatedAt = "not-a-time"
 		item, ok, err := collectSecretScanningAlert(alert, "owner/repo", opts)
