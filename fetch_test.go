@@ -145,7 +145,7 @@ func TestCollectCodeScanningAlert(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		want := AdvisoryItem{
-			AlertType:      "code-scanning",
+			AlertType:      AlertTypeCodeScanning,
 			AlertNumber:    42,
 			Identifier:     "rule-id",
 			Summary:        "some description",
@@ -207,7 +207,7 @@ func TestCollectSecretScanningAlert(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		want := AdvisoryItem{
-			AlertType:      "secret-scanning",
+			AlertType:      AlertTypeSecretScanning,
 			AlertNumber:    7,
 			Identifier:     "aws_key",
 			Summary:        "AWS Key",

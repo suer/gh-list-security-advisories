@@ -50,6 +50,15 @@ type query struct {
 	Search SearchResultItemConnection `graphql:"search(query: $searchQuery, type: REPOSITORY, first: 100, after: $cursor)"`
 }
 
+// Alert type identifiers used across AdvisoryItem.AlertType, Formatter
+// implementations, and the fetch/collect functions that populate them.
+const (
+	AlertTypeDependabot     = "dependabot"
+	AlertTypeMalware        = "malware"
+	AlertTypeCodeScanning   = "code-scanning"
+	AlertTypeSecretScanning = "secret-scanning"
+)
+
 type RepositoryItem struct {
 	Name          string
 	AdvisoryItems []AdvisoryItem
@@ -59,11 +68,12 @@ type AdvisoryItem struct {
 	AlertType   string
 	AlertNumber int
 	// Identifier holds the alert's primary identifier, whose meaning depends
-	// on AlertType: a GHSA ID for "dependabot"/"malware", a code scanning
-	// rule ID for "code-scanning", or a secret type for "secret-scanning".
+	// on AlertType: a GHSA ID for AlertTypeDependabot/AlertTypeMalware, a
+	// code scanning rule ID for AlertTypeCodeScanning, or a secret type for
+	// AlertTypeSecretScanning.
 	Identifier string
 	Summary    string
-	// Severity is "-" for secret-scanning alerts, which have no severity.
+	// Severity is "-" for AlertTypeSecretScanning alerts, which have no severity.
 	Severity       string
 	CreatedAt      time.Time
 	RepositoryName string
@@ -178,9 +188,9 @@ func fetchDependabotAlerts(gqlClient *api.GraphQLClient, owner string, opts *Opt
 				if !shouldIncludeSeverity(alert.SecurityAdvisory.Severity, opts.Severities) {
 					continue
 				}
-				alertType := "dependabot"
+				alertType := AlertTypeDependabot
 				if strings.EqualFold(alert.SecurityAdvisory.Classification, "MALWARE") {
-					alertType = "malware"
+					alertType = AlertTypeMalware
 				}
 				addToRepoMap(repoMap, AdvisoryItem{
 					AlertType:      alertType,
@@ -220,7 +230,7 @@ func collectCodeScanningAlert(alert codeScanningAlertResponse, repoFullName stri
 		err = fmt.Errorf("parsing created_at %q for code-scanning alert #%d in %s: %w", alert.CreatedAt, alert.Number, repoFullName, err)
 	}
 	return AdvisoryItem{
-		AlertType:      "code-scanning",
+		AlertType:      AlertTypeCodeScanning,
 		AlertNumber:    alert.Number,
 		Identifier:     alert.Rule.ID,
 		Summary:        alert.Rule.Description,
@@ -247,7 +257,7 @@ func collectSecretScanningAlert(alert secretScanningAlertResponse, repoFullName 
 		err = fmt.Errorf("parsing created_at %q for secret-scanning alert #%d in %s: %w", alert.CreatedAt, alert.Number, repoFullName, err)
 	}
 	return AdvisoryItem{
-		AlertType:      "secret-scanning",
+		AlertType:      AlertTypeSecretScanning,
 		AlertNumber:    alert.Number,
 		Identifier:     alert.SecretType,
 		Summary:        displayName,

@@ -18,7 +18,7 @@ func TestNewFormatter(t *testing.T) {
 func TestNoColorFormatter(t *testing.T) {
 	ncf := &NoColorFormatter{}
 	ai := &AdvisoryItem{
-		AlertType:      "dependabot",
+		AlertType:      AlertTypeDependabot,
 		AlertNumber:    5,
 		Identifier:     "GHSA-xxxx",
 		Summary:        "some summary",
@@ -27,8 +27,8 @@ func TestNoColorFormatter(t *testing.T) {
 		RepositoryName: "owner/repo",
 	}
 
-	if got := ncf.FormatAlertType(ai); got != "dependabot" {
-		t.Errorf("FormatAlertType() = %q, want %q", got, "dependabot")
+	if got := ncf.FormatAlertType(ai); got != AlertTypeDependabot {
+		t.Errorf("FormatAlertType() = %q, want %q", got, AlertTypeDependabot)
 	}
 	if got := ncf.FormatIdentifier(ai); got != "GHSA-xxxx" {
 		t.Errorf("FormatIdentifier() = %q, want %q", got, "GHSA-xxxx")
@@ -82,10 +82,10 @@ func TestColorFormatterFormatIdentifier(t *testing.T) {
 		alertType   string
 		expectedURL string
 	}{
-		{"code-scanning", "https://github.com/owner/repo/security/code-scanning/1"},
-		{"secret-scanning", "https://github.com/owner/repo/security/secret-scanning/1"},
-		{"malware", "https://github.com/advisories/GHSA-xxxx"},
-		{"dependabot", "https://github.com/advisories/GHSA-xxxx"},
+		{AlertTypeCodeScanning, "https://github.com/owner/repo/security/code-scanning/1"},
+		{AlertTypeSecretScanning, "https://github.com/owner/repo/security/secret-scanning/1"},
+		{AlertTypeMalware, "https://github.com/advisories/GHSA-xxxx"},
+		{AlertTypeDependabot, "https://github.com/advisories/GHSA-xxxx"},
 	}
 	for _, tt := range tests {
 		ai := &AdvisoryItem{AlertType: tt.alertType, Identifier: "GHSA-xxxx", RepositoryName: "owner/repo", AlertNumber: 1}

@@ -40,7 +40,7 @@ func captureStdout(t *testing.T, f func()) string {
 
 func TestPrintLine(t *testing.T) {
 	ai := &AdvisoryItem{
-		AlertType:      "dependabot",
+		AlertType:      AlertTypeDependabot,
 		AlertNumber:    1,
 		Identifier:     "GHSA-a",
 		Summary:        "summary",
@@ -67,7 +67,7 @@ func TestPrintList(t *testing.T) {
 		Name: "owner/repo",
 		AdvisoryItems: []AdvisoryItem{
 			{
-				AlertType:      "code-scanning",
+				AlertType:      AlertTypeCodeScanning,
 				AlertNumber:    1,
 				Identifier:     "GHSA-a",
 				Summary:        "short one",
@@ -76,7 +76,7 @@ func TestPrintList(t *testing.T) {
 				RepositoryName: "owner/repo",
 			},
 			{
-				AlertType:      "dependabot",
+				AlertType:      AlertTypeDependabot,
 				AlertNumber:    123,
 				Identifier:     "GHSA-longer-id",
 				Summary:        "another one",
