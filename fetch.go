@@ -56,10 +56,14 @@ type RepositoryItem struct {
 }
 
 type AdvisoryItem struct {
-	AlertType      string
-	AlertNumber    int
-	GhsaId         string
-	Summary        string
+	AlertType   string
+	AlertNumber int
+	// Identifier holds the alert's primary identifier, whose meaning depends
+	// on AlertType: a GHSA ID for "dependabot"/"malware", a code scanning
+	// rule ID for "code-scanning", or a secret type for "secret-scanning".
+	Identifier string
+	Summary    string
+	// Severity is "-" for secret-scanning alerts, which have no severity.
 	Severity       string
 	CreatedAt      time.Time
 	RepositoryName string
@@ -181,7 +185,7 @@ func fetchDependabotAlerts(gqlClient *api.GraphQLClient, owner string, opts *Opt
 				addToRepoMap(repoMap, AdvisoryItem{
 					AlertType:      alertType,
 					AlertNumber:    alert.Number,
-					GhsaId:         alert.SecurityAdvisory.GhsaId,
+					Identifier:     alert.SecurityAdvisory.GhsaId,
 					Summary:        alert.SecurityAdvisory.Summary,
 					Severity:       alert.SecurityAdvisory.Severity,
 					CreatedAt:      alert.CreatedAt,
@@ -218,7 +222,7 @@ func collectCodeScanningAlert(alert codeScanningAlertResponse, repoFullName stri
 	return AdvisoryItem{
 		AlertType:      "code-scanning",
 		AlertNumber:    alert.Number,
-		GhsaId:         alert.Rule.ID,
+		Identifier:     alert.Rule.ID,
 		Summary:        alert.Rule.Description,
 		Severity:       severity,
 		CreatedAt:      createdAt,
@@ -245,7 +249,7 @@ func collectSecretScanningAlert(alert secretScanningAlertResponse, repoFullName 
 	return AdvisoryItem{
 		AlertType:      "secret-scanning",
 		AlertNumber:    alert.Number,
-		GhsaId:         alert.SecretType,
+		Identifier:     alert.SecretType,
 		Summary:        displayName,
 		Severity:       "-",
 		CreatedAt:      createdAt,

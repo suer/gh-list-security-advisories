@@ -108,8 +108,8 @@ func TestIsNotFound(t *testing.T) {
 func TestAddToRepoMap(t *testing.T) {
 	repoMap := map[string]RepositoryItem{}
 
-	addToRepoMap(repoMap, AdvisoryItem{RepositoryName: "owner/repo", GhsaId: "GHSA-1"})
-	addToRepoMap(repoMap, AdvisoryItem{RepositoryName: "owner/repo", GhsaId: "GHSA-2"})
+	addToRepoMap(repoMap, AdvisoryItem{RepositoryName: "owner/repo", Identifier: "GHSA-1"})
+	addToRepoMap(repoMap, AdvisoryItem{RepositoryName: "owner/repo", Identifier: "GHSA-2"})
 
 	ri, ok := repoMap["owner/repo"]
 	if !ok {
@@ -121,7 +121,7 @@ func TestAddToRepoMap(t *testing.T) {
 	if len(ri.AdvisoryItems) != 2 {
 		t.Fatalf("len(ri.AdvisoryItems) = %d, want 2", len(ri.AdvisoryItems))
 	}
-	if ri.AdvisoryItems[0].GhsaId != "GHSA-1" || ri.AdvisoryItems[1].GhsaId != "GHSA-2" {
+	if ri.AdvisoryItems[0].Identifier != "GHSA-1" || ri.AdvisoryItems[1].Identifier != "GHSA-2" {
 		t.Errorf("unexpected AdvisoryItems order: %+v", ri.AdvisoryItems)
 	}
 }
@@ -147,7 +147,7 @@ func TestCollectCodeScanningAlert(t *testing.T) {
 		want := AdvisoryItem{
 			AlertType:      "code-scanning",
 			AlertNumber:    42,
-			GhsaId:         "rule-id",
+			Identifier:     "rule-id",
 			Summary:        "some description",
 			Severity:       "HIGH",
 			CreatedAt:      time.Date(2026, 1, 2, 15, 4, 5, 0, time.UTC),
@@ -209,7 +209,7 @@ func TestCollectSecretScanningAlert(t *testing.T) {
 		want := AdvisoryItem{
 			AlertType:      "secret-scanning",
 			AlertNumber:    7,
-			GhsaId:         "aws_key",
+			Identifier:     "aws_key",
 			Summary:        "AWS Key",
 			Severity:       "-",
 			CreatedAt:      time.Date(2026, 3, 4, 0, 0, 0, 0, time.UTC),

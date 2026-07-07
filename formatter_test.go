@@ -20,7 +20,7 @@ func TestNoColorFormatter(t *testing.T) {
 	ai := &AdvisoryItem{
 		AlertType:      "dependabot",
 		AlertNumber:    5,
-		GhsaId:         "GHSA-xxxx",
+		Identifier:     "GHSA-xxxx",
 		Summary:        "some summary",
 		Severity:       "HIGH",
 		CreatedAt:      time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
@@ -30,8 +30,8 @@ func TestNoColorFormatter(t *testing.T) {
 	if got := ncf.FormatAlertType(ai); got != "dependabot" {
 		t.Errorf("FormatAlertType() = %q, want %q", got, "dependabot")
 	}
-	if got := ncf.FormatGhsaId(ai); got != "GHSA-xxxx" {
-		t.Errorf("FormatGhsaId() = %q, want %q", got, "GHSA-xxxx")
+	if got := ncf.FormatIdentifier(ai); got != "GHSA-xxxx" {
+		t.Errorf("FormatIdentifier() = %q, want %q", got, "GHSA-xxxx")
 	}
 	if got := ncf.FormatAlertLink(ai); got != "#5" {
 		t.Errorf("FormatAlertLink() = %q, want %q", got, "#5")
@@ -76,7 +76,7 @@ func TestColorFormatterFormatSeverityContainsSeverityText(t *testing.T) {
 	}
 }
 
-func TestColorFormatterFormatGhsaId(t *testing.T) {
+func TestColorFormatterFormatIdentifier(t *testing.T) {
 	cf := &ColorFormatter{}
 	tests := []struct {
 		alertType   string
@@ -88,13 +88,13 @@ func TestColorFormatterFormatGhsaId(t *testing.T) {
 		{"dependabot", "https://github.com/advisories/GHSA-xxxx"},
 	}
 	for _, tt := range tests {
-		ai := &AdvisoryItem{AlertType: tt.alertType, GhsaId: "GHSA-xxxx", RepositoryName: "owner/repo", AlertNumber: 1}
-		got := cf.FormatGhsaId(ai)
+		ai := &AdvisoryItem{AlertType: tt.alertType, Identifier: "GHSA-xxxx", RepositoryName: "owner/repo", AlertNumber: 1}
+		got := cf.FormatIdentifier(ai)
 		if !strings.Contains(got, "GHSA-xxxx") {
-			t.Errorf("FormatGhsaId() for alertType %q = %q, should contain GhsaId", tt.alertType, got)
+			t.Errorf("FormatIdentifier() for alertType %q = %q, should contain Identifier", tt.alertType, got)
 		}
 		if !strings.Contains(got, tt.expectedURL) {
-			t.Errorf("FormatGhsaId() for alertType %q = %q, should contain URL %q", tt.alertType, got, tt.expectedURL)
+			t.Errorf("FormatIdentifier() for alertType %q = %q, should contain URL %q", tt.alertType, got, tt.expectedURL)
 		}
 	}
 }

@@ -11,13 +11,13 @@ func alertLinkRawText(ai *AdvisoryItem) string {
 	return fmt.Sprintf("#%d", ai.AlertNumber)
 }
 
-func (ai *AdvisoryItem) printLine(alertTypeWidth, dependabotLinkWidth, ghsaIdWidth, severityWidth int, formatter Formatter) {
+func (ai *AdvisoryItem) printLine(alertTypeWidth, dependabotLinkWidth, identifierWidth, severityWidth int, formatter Formatter) {
 	alertType := formatter.FormatAlertType(ai)
 	alertTypePadding := alertTypeWidth - len(ai.AlertType)
 	dependabotLink := formatter.FormatAlertLink(ai)
 	dependabotLinkPadding := dependabotLinkWidth - len(alertLinkRawText(ai))
-	ghsaId := formatter.FormatGhsaId(ai)
-	ghsaIdPadding := ghsaIdWidth - len(ai.GhsaId)
+	identifier := formatter.FormatIdentifier(ai)
+	identifierPadding := identifierWidth - len(ai.Identifier)
 	severity := formatter.FormatSeverity(ai)
 	severityPadding := severityWidth - len(ai.Severity)
 	createdAt := formatter.FormatCreatedAt(ai)
@@ -26,7 +26,7 @@ func (ai *AdvisoryItem) printLine(alertTypeWidth, dependabotLinkWidth, ghsaIdWid
 	fmt.Printf("%s%-*s %s%-*s %s%-*s %s%-*s %s %s\n",
 		alertType, alertTypePadding+1, "",
 		dependabotLink, dependabotLinkPadding+1, "",
-		ghsaId, ghsaIdPadding+1, "",
+		identifier, identifierPadding+1, "",
 		severity, severityPadding+1, "",
 		createdAt,
 		summary)
@@ -37,7 +37,7 @@ func (ri *RepositoryItem) printList(opts *Options) {
 
 	alertTypeWidth := 0
 	dependabotLinkWidth := 0
-	ghsaIdWidth := 0
+	identifierWidth := 0
 	severityWidth := 0
 
 	for _, advisory := range ri.AdvisoryItems {
@@ -47,8 +47,8 @@ func (ri *RepositoryItem) printList(opts *Options) {
 		if l := len(alertLinkRawText(&advisory)); l > dependabotLinkWidth {
 			dependabotLinkWidth = l
 		}
-		if len(advisory.GhsaId) > ghsaIdWidth {
-			ghsaIdWidth = len(advisory.GhsaId)
+		if len(advisory.Identifier) > identifierWidth {
+			identifierWidth = len(advisory.Identifier)
 		}
 		if len(advisory.Severity) > severityWidth {
 			severityWidth = len(advisory.Severity)
@@ -58,7 +58,7 @@ func (ri *RepositoryItem) printList(opts *Options) {
 	fmt.Printf("# %s\n", formatter.FormatRepositoryName(ri.Name))
 
 	for _, advisory := range ri.AdvisoryItems {
-		advisory.printLine(alertTypeWidth, dependabotLinkWidth, ghsaIdWidth, severityWidth, formatter)
+		advisory.printLine(alertTypeWidth, dependabotLinkWidth, identifierWidth, severityWidth, formatter)
 	}
 }
 
