@@ -351,7 +351,7 @@ func fetchAlertsWithFallback(
 	orgHandled, err := fetchOrg(restClient, owner, opts, repoMap)
 	warnIfVerbose(opts, err)
 	if orgHandled {
-		pb.current.Add(int64(len(allRepos)))
+		pb.IncrementBy(len(allRepos))
 		return err
 	}
 	const concurrency = 10
@@ -427,7 +427,7 @@ func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName
 func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) error {
 	// Secret scanning alerts have no severity; skip when severity filter is active
 	if len(opts.Severities) > 0 {
-		pb.current.Add(int64(len(allRepos)))
+		pb.IncrementBy(len(allRepos))
 		return nil
 	}
 	return fetchAlertsWithFallback(restClient, owner, allRepos, opts, repoMap, pb, fetchSecretScanningAlertsOrg, collectSecretScanningAlertsForRepo)

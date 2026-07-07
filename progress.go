@@ -33,6 +33,10 @@ func (p *ProgressBar) Increment() {
 	p.current.Add(1)
 }
 
+func (p *ProgressBar) IncrementBy(n int) {
+	p.current.Add(int64(n))
+}
+
 func (p *ProgressBar) render(frame string) {
 	total := p.total.Load()
 	current := p.current.Load()
