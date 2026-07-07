@@ -472,7 +472,7 @@ func fetchSecurityAdvisories(owner string, opts *Options, pb *ProgressBar) ([]Re
 	for name := range repoMap {
 		items := repoMap[name].AdvisoryItems
 		sort.Slice(items, func(i, j int) bool {
-			return items[j].CreatedAt.Before(items[i].CreatedAt)
+			return items[i].CreatedAt.After(items[j].CreatedAt)
 		})
 		repoMap[name] = RepositoryItem{
 			Name:          name,
