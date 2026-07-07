@@ -35,12 +35,8 @@ func (cf *ColorFormatter) FormatAlertType(ai *AdvisoryItem) string {
 func (cf *ColorFormatter) FormatIdentifier(ai *AdvisoryItem) string {
 	var url string
 	switch ai.AlertType {
-	case AlertTypeCodeScanning:
-		url = fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", ai.RepositoryName, ai.AlertNumber)
-	case AlertTypeSecretScanning:
-		url = fmt.Sprintf("https://github.com/%s/security/secret-scanning/%d", ai.RepositoryName, ai.AlertNumber)
-	case AlertTypeMalware, AlertTypeDependabot:
-		url = fmt.Sprintf("https://github.com/advisories/%s", ai.Identifier)
+	case AlertTypeCodeScanning, AlertTypeSecretScanning:
+		url = alertLinkURL(ai)
 	default:
 		url = fmt.Sprintf("https://github.com/advisories/%s", ai.Identifier)
 	}
