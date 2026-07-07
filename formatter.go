@@ -17,7 +17,9 @@ type Formatter interface {
 	FormatRepositoryName(name string) string
 }
 
-type ColorFormatter struct{}
+type ColorFormatter struct {
+	NoColorFormatter
+}
 
 func (cf *ColorFormatter) FormatAlertType(ai *AdvisoryItem) string {
 	switch ai.AlertType {
@@ -76,14 +78,6 @@ func (cf *ColorFormatter) FormatSeverity(ai *AdvisoryItem) string {
 	default:
 		return ai.Severity
 	}
-}
-
-func (cf *ColorFormatter) FormatCreatedAt(ai *AdvisoryItem) string {
-	return ai.CreatedAt.In(time.Local).Format("2006-01-02")
-}
-
-func (cf *ColorFormatter) FormatSummary(ai *AdvisoryItem) string {
-	return ai.Summary
 }
 
 func (cf *ColorFormatter) FormatRepositoryName(name string) string {
