@@ -226,104 +226,6 @@ func collectCodeScanningAlert(alert codeScanningAlertResponse, repoFullName stri
 	}, true, err
 }
 
-// fetchCodeScanningAlertsOrg reports (false, nil) when the org-level endpoint
-// is unavailable (404), signalling the caller to fall back to per-repo
-// fetches. Any other error is returned so the caller can surface it instead
-// of silently under-reporting alerts.
-func fetchCodeScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error) {
-	var errs []error
-	for page := 1; ; page++ {
-		path := fmt.Sprintf("orgs/%s/code-scanning/alerts?state=open&per_page=100&page=%d", org, page)
-		var alerts []codeScanningAlertResponse
-		if err := restClient.Get(path, &alerts); err != nil {
-			if isNotFound(err) {
-				return false, nil
-			}
-			return false, fmt.Errorf("fetching org code scanning alerts for %s (page %d): %w", org, page, err)
-		}
-		if len(alerts) == 0 {
-			break
-		}
-		for _, alert := range alerts {
-			item, ok, err := collectCodeScanningAlert(alert, alert.Repository.FullName, opts)
-			if err != nil {
-				errs = append(errs, err)
-			}
-			if ok {
-				addToRepoMap(repoMap, item)
-			}
-		}
-	}
-	return true, errors.Join(errs...)
-}
-
-func collectCodeScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error) {
-	var items []AdvisoryItem
-	var errs []error
-	for page := 1; ; page++ {
-		path := fmt.Sprintf("repos/%s/code-scanning/alerts?state=open&per_page=100&page=%d", repoFullName, page)
-		var alerts []codeScanningAlertResponse
-		if err := restClient.Get(path, &alerts); err != nil {
-			if isNotFound(err) {
-				break
-			}
-			return items, fmt.Errorf("fetching code scanning alerts for %s (page %d): %w", repoFullName, page, err)
-		}
-		if len(alerts) == 0 {
-			break
-		}
-		for _, alert := range alerts {
-			item, ok, err := collectCodeScanningAlert(alert, repoFullName, opts)
-			if err != nil {
-				errs = append(errs, err)
-			}
-			if ok {
-				items = append(items, item)
-			}
-		}
-	}
-	return items, errors.Join(errs...)
-}
-
-func warnIfVerbose(opts *Options, err error) {
-	if err != nil && opts.Verbose {
-		fmt.Fprintf(os.Stderr, "warning: %s\n", err)
-	}
-}
-
-func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) error {
-	orgHandled, err := fetchCodeScanningAlertsOrg(restClient, owner, opts, repoMap)
-	warnIfVerbose(opts, err)
-	if orgHandled {
-		pb.current.Add(int64(len(allRepos)))
-		return err
-	}
-	const concurrency = 10
-	sem := make(chan struct{}, concurrency)
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	errs := []error{err}
-	for _, repo := range allRepos {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(repoFullName string) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			defer pb.Increment()
-			items, err := collectCodeScanningAlertsForRepo(restClient, repoFullName, opts)
-			warnIfVerbose(opts, err)
-			mu.Lock()
-			defer mu.Unlock()
-			errs = append(errs, err)
-			for _, item := range items {
-				addToRepoMap(repoMap, item)
-			}
-		}(repo)
-	}
-	wg.Wait()
-	return errors.Join(errs...)
-}
-
 // collectSecretScanningAlert reports created-at parse failures as an error
 // rather than silently falling back to the zero time, but still returns the
 // item (ok=true) so a single unparsable timestamp doesn't drop the alert
@@ -351,26 +253,29 @@ func collectSecretScanningAlert(alert secretScanningAlertResponse, repoFullName 
 	}, true, err
 }
 
-// fetchSecretScanningAlertsOrg reports (false, nil) when the org-level
-// endpoint is unavailable (404), signalling the caller to fall back to
-// per-repo fetches. Any other error is returned so the caller can surface it
-// instead of silently under-reporting alerts.
-func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error) {
+// fetchAlertsOrgPaginated fetches paginated alerts from an org-level REST
+// endpoint (urlPathFmt must contain exactly one %d for the page number),
+// decoding each page into []T and running collect on every item. It reports
+// (false, nil) when the endpoint itself is unavailable (404), signalling the
+// caller to fall back to per-repo fetches; any other HTTP error, or an error
+// returned by collect (e.g. a created-at parse failure), is accumulated and
+// returned instead of being dropped.
+func fetchAlertsOrgPaginated[T any](restClient *api.RESTClient, urlPathFmt, description string, repoMap map[string]RepositoryItem, collect func(alert T) (AdvisoryItem, bool, error)) (bool, error) {
 	var errs []error
 	for page := 1; ; page++ {
-		path := fmt.Sprintf("orgs/%s/secret-scanning/alerts?state=open&per_page=100&page=%d", org, page)
-		var alerts []secretScanningAlertResponse
+		path := fmt.Sprintf(urlPathFmt, page)
+		var alerts []T
 		if err := restClient.Get(path, &alerts); err != nil {
 			if isNotFound(err) {
 				return false, nil
 			}
-			return false, fmt.Errorf("fetching org secret scanning alerts for %s (page %d): %w", org, page, err)
+			return false, fmt.Errorf("fetching %s (page %d): %w", description, page, err)
 		}
 		if len(alerts) == 0 {
 			break
 		}
 		for _, alert := range alerts {
-			item, ok, err := collectSecretScanningAlert(alert, alert.Repository.FullName, opts)
+			item, ok, err := collect(alert)
 			if err != nil {
 				errs = append(errs, err)
 			}
@@ -382,23 +287,29 @@ func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *
 	return true, errors.Join(errs...)
 }
 
-func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error) {
+// fetchAlertsForRepoPaginated is the per-repository counterpart of
+// fetchAlertsOrgPaginated (urlPathFmt must contain exactly one %d for the
+// page number): a 404 simply means this repo doesn't have the feature
+// enabled, but any other error is returned alongside whatever items were
+// already collected, since a mid-pagination failure shouldn't discard
+// alerts fetched from earlier pages.
+func fetchAlertsForRepoPaginated[T any](restClient *api.RESTClient, urlPathFmt, description string, collect func(alert T) (AdvisoryItem, bool, error)) ([]AdvisoryItem, error) {
 	var items []AdvisoryItem
 	var errs []error
 	for page := 1; ; page++ {
-		path := fmt.Sprintf("repos/%s/secret-scanning/alerts?state=open&per_page=100&page=%d", repoFullName, page)
-		var alerts []secretScanningAlertResponse
+		path := fmt.Sprintf(urlPathFmt, page)
+		var alerts []T
 		if err := restClient.Get(path, &alerts); err != nil {
 			if isNotFound(err) {
 				break
 			}
-			return items, fmt.Errorf("fetching secret scanning alerts for %s (page %d): %w", repoFullName, page, err)
+			return items, fmt.Errorf("fetching %s (page %d): %w", description, page, err)
 		}
 		if len(alerts) == 0 {
 			break
 		}
 		for _, alert := range alerts {
-			item, ok, err := collectSecretScanningAlert(alert, repoFullName, opts)
+			item, ok, err := collect(alert)
 			if err != nil {
 				errs = append(errs, err)
 			}
@@ -410,13 +321,27 @@ func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName
 	return items, errors.Join(errs...)
 }
 
-func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) error {
-	// Secret scanning alerts have no severity; skip when severity filter is active
-	if len(*opts.Severities) > 0 {
-		pb.current.Add(int64(len(allRepos)))
-		return nil
+func warnIfVerbose(opts *Options, err error) {
+	if err != nil && opts.Verbose {
+		fmt.Fprintf(os.Stderr, "warning: %s\n", err)
 	}
-	orgHandled, err := fetchSecretScanningAlertsOrg(restClient, owner, opts, repoMap)
+}
+
+// fetchAlertsWithFallback tries the org-level endpoint first via fetchOrg
+// and only pays for a per-repo concurrent sweep via fetchForRepo when the
+// org endpoint isn't available (e.g. non-Enterprise orgs, or personal
+// accounts, don't expose it).
+func fetchAlertsWithFallback(
+	restClient *api.RESTClient,
+	owner string,
+	allRepos []string,
+	opts *Options,
+	repoMap map[string]RepositoryItem,
+	pb *ProgressBar,
+	fetchOrg func(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error),
+	fetchForRepo func(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error),
+) error {
+	orgHandled, err := fetchOrg(restClient, owner, opts, repoMap)
 	warnIfVerbose(opts, err)
 	if orgHandled {
 		pb.current.Add(int64(len(allRepos)))
@@ -434,7 +359,7 @@ func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepo
 			defer wg.Done()
 			defer func() { <-sem }()
 			defer pb.Increment()
-			items, err := collectSecretScanningAlertsForRepo(restClient, repoFullName, opts)
+			items, err := fetchForRepo(restClient, repoFullName, opts)
 			warnIfVerbose(opts, err)
 			mu.Lock()
 			defer mu.Unlock()
@@ -446,6 +371,59 @@ func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepo
 	}
 	wg.Wait()
 	return errors.Join(errs...)
+}
+
+// fetchCodeScanningAlertsOrg reports (false, nil) when the org-level endpoint
+// is unavailable (404), signalling the caller to fall back to per-repo
+// fetches. Any other error is returned so the caller can surface it instead
+// of silently under-reporting alerts.
+func fetchCodeScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error) {
+	urlPathFmt := fmt.Sprintf("orgs/%s/code-scanning/alerts?state=open&per_page=100&page=%%d", org)
+	description := fmt.Sprintf("org code scanning alerts for %s", org)
+	return fetchAlertsOrgPaginated(restClient, urlPathFmt, description, repoMap, func(alert codeScanningAlertResponse) (AdvisoryItem, bool, error) {
+		return collectCodeScanningAlert(alert, alert.Repository.FullName, opts)
+	})
+}
+
+func collectCodeScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error) {
+	urlPathFmt := fmt.Sprintf("repos/%s/code-scanning/alerts?state=open&per_page=100&page=%%d", repoFullName)
+	description := fmt.Sprintf("code scanning alerts for %s", repoFullName)
+	return fetchAlertsForRepoPaginated(restClient, urlPathFmt, description, func(alert codeScanningAlertResponse) (AdvisoryItem, bool, error) {
+		return collectCodeScanningAlert(alert, repoFullName, opts)
+	})
+}
+
+func fetchCodeScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) error {
+	return fetchAlertsWithFallback(restClient, owner, allRepos, opts, repoMap, pb, fetchCodeScanningAlertsOrg, collectCodeScanningAlertsForRepo)
+}
+
+// fetchSecretScanningAlertsOrg reports (false, nil) when the org-level
+// endpoint is unavailable (404), signalling the caller to fall back to
+// per-repo fetches. Any other error is returned so the caller can surface it
+// instead of silently under-reporting alerts.
+func fetchSecretScanningAlertsOrg(restClient *api.RESTClient, org string, opts *Options, repoMap map[string]RepositoryItem) (bool, error) {
+	urlPathFmt := fmt.Sprintf("orgs/%s/secret-scanning/alerts?state=open&per_page=100&page=%%d", org)
+	description := fmt.Sprintf("org secret scanning alerts for %s", org)
+	return fetchAlertsOrgPaginated(restClient, urlPathFmt, description, repoMap, func(alert secretScanningAlertResponse) (AdvisoryItem, bool, error) {
+		return collectSecretScanningAlert(alert, alert.Repository.FullName, opts)
+	})
+}
+
+func collectSecretScanningAlertsForRepo(restClient *api.RESTClient, repoFullName string, opts *Options) ([]AdvisoryItem, error) {
+	urlPathFmt := fmt.Sprintf("repos/%s/secret-scanning/alerts?state=open&per_page=100&page=%%d", repoFullName)
+	description := fmt.Sprintf("secret scanning alerts for %s", repoFullName)
+	return fetchAlertsForRepoPaginated(restClient, urlPathFmt, description, func(alert secretScanningAlertResponse) (AdvisoryItem, bool, error) {
+		return collectSecretScanningAlert(alert, repoFullName, opts)
+	})
+}
+
+func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepos []string, opts *Options, repoMap map[string]RepositoryItem, pb *ProgressBar) error {
+	// Secret scanning alerts have no severity; skip when severity filter is active
+	if len(*opts.Severities) > 0 {
+		pb.current.Add(int64(len(allRepos)))
+		return nil
+	}
+	return fetchAlertsWithFallback(restClient, owner, allRepos, opts, repoMap, pb, fetchSecretScanningAlertsOrg, collectSecretScanningAlertsForRepo)
 }
 
 func fetchSecurityAdvisories(owner string, opts *Options, pb *ProgressBar) ([]RepositoryItem, error) {
