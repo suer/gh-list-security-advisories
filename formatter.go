@@ -21,11 +21,11 @@ type ColorFormatter struct{}
 
 func (cf *ColorFormatter) FormatAlertType(ai *AdvisoryItem) string {
 	switch ai.AlertType {
-	case "code-scanning":
+	case AlertTypeCodeScanning:
 		return aurora.Blue(ai.AlertType).String()
-	case "secret-scanning":
+	case AlertTypeSecretScanning:
 		return aurora.Magenta(ai.AlertType).String()
-	case "malware":
+	case AlertTypeMalware:
 		return aurora.Red(ai.AlertType).String()
 	default:
 		return aurora.Cyan(ai.AlertType).String()
@@ -35,11 +35,11 @@ func (cf *ColorFormatter) FormatAlertType(ai *AdvisoryItem) string {
 func (cf *ColorFormatter) FormatIdentifier(ai *AdvisoryItem) string {
 	var url string
 	switch ai.AlertType {
-	case "code-scanning":
+	case AlertTypeCodeScanning:
 		url = fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", ai.RepositoryName, ai.AlertNumber)
-	case "secret-scanning":
+	case AlertTypeSecretScanning:
 		url = fmt.Sprintf("https://github.com/%s/security/secret-scanning/%d", ai.RepositoryName, ai.AlertNumber)
-	case "malware", "dependabot":
+	case AlertTypeMalware, AlertTypeDependabot:
 		url = fmt.Sprintf("https://github.com/advisories/%s", ai.Identifier)
 	default:
 		url = fmt.Sprintf("https://github.com/advisories/%s", ai.Identifier)
@@ -49,11 +49,11 @@ func (cf *ColorFormatter) FormatIdentifier(ai *AdvisoryItem) string {
 
 func alertLinkURL(ai *AdvisoryItem) string {
 	switch ai.AlertType {
-	case "code-scanning":
+	case AlertTypeCodeScanning:
 		return fmt.Sprintf("https://github.com/%s/security/code-scanning/%d", ai.RepositoryName, ai.AlertNumber)
-	case "secret-scanning":
+	case AlertTypeSecretScanning:
 		return fmt.Sprintf("https://github.com/%s/security/secret-scanning/%d", ai.RepositoryName, ai.AlertNumber)
-	case "malware":
+	case AlertTypeMalware:
 		return fmt.Sprintf("https://github.com/%s/security/malware/%d", ai.RepositoryName, ai.AlertNumber)
 	default:
 		return fmt.Sprintf("https://github.com/%s/security/dependabot/%d", ai.RepositoryName, ai.AlertNumber)
