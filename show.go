@@ -5,7 +5,6 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	graphql "github.com/cli/shurcooL-graphql"
-	"github.com/logrusorgru/aurora/v4"
 )
 
 type SecurityAdvisoryDetail struct {
@@ -65,8 +64,10 @@ func showAdvisory(ghsaId string, opts *Options) error {
 		return err
 	}
 
-	fmt.Printf("GHSA ID: %s\n", formatGhsaIdForShow(ghsaId, opts.NoColor))
-	fmt.Printf("Severity: %s\n", formatSeverityForShow(advisory.Severity, opts.NoColor))
+	formatter := NewFormatter(opts.NoColor)
+	item := &AdvisoryItem{GhsaId: ghsaId, Severity: advisory.Severity}
+	fmt.Printf("GHSA ID: %s\n", formatter.FormatGhsaId(item))
+	fmt.Printf("Severity: %s\n", formatter.FormatSeverity(item))
 	fmt.Printf("Summary: %s\n", advisory.Summary)
 	fmt.Printf("Published: %s\n", advisory.PublishedAt)
 	fmt.Printf("Updated: %s\n", advisory.UpdatedAt)
@@ -108,30 +109,4 @@ func showAdvisory(ghsaId string, opts *Options) error {
 	}
 
 	return nil
-}
-
-func formatGhsaIdForShow(ghsaId string, noColor bool) string {
-	if noColor {
-		return ghsaId
-	}
-	url := fmt.Sprintf("https://github.com/advisories/%s", ghsaId)
-	return aurora.Cyan(ghsaId).Hyperlink(url).String()
-}
-
-func formatSeverityForShow(severity string, noColor bool) string {
-	if noColor {
-		return severity
-	}
-	switch severity {
-	case "CRITICAL":
-		return aurora.Red(severity).Bold().String()
-	case "HIGH":
-		return aurora.Red(severity).String()
-	case "MODERATE":
-		return aurora.Yellow(severity).String()
-	case "LOW":
-		return aurora.Green(severity).String()
-	default:
-		return severity
-	}
 }
