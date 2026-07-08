@@ -164,7 +164,7 @@ func fetchDependabotAlerts(gqlClient *api.GraphQLClient, owner string, opts *Opt
 
 	for {
 		var q query
-		variables := map[string]interface{}{
+		variables := map[string]any{
 			"searchQuery": graphql.String(searchQuery),
 			"cursor":      cursor,
 			"alertLimit":  graphql.Int(opts.Limit),
