@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/spf13/cobra"
 )
 
@@ -64,6 +65,15 @@ func rootCmd() *cobra.Command {
 }
 
 func run(owners []string, opts *Options) error {
+	gqlClient, err := api.DefaultGraphQLClient()
+	if err != nil {
+		return err
+	}
+	restClient, err := api.DefaultRESTClient()
+	if err != nil {
+		return err
+	}
+
 	pb := NewProgressBar()
 	pb.Start()
 
@@ -77,7 +87,7 @@ func run(owners []string, opts *Options) error {
 		go func(owner string) {
 			defer wg.Done()
 
-			repositories, err := fetchSecurityAdvisories(owner, opts, pb)
+			repositories, err := fetchSecurityAdvisories(gqlClient, restClient, owner, opts, pb)
 
 			mu.Lock()
 			defer mu.Unlock()

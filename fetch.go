@@ -437,16 +437,7 @@ func fetchSecretScanningAlerts(restClient *api.RESTClient, owner string, allRepo
 	return fetchAlertsWithFallback(restClient, owner, allRepos, opts, repoMap, pb, fetchSecretScanningAlertsOrg, collectSecretScanningAlertsForRepo)
 }
 
-func fetchSecurityAdvisories(owner string, opts *Options, pb *ProgressBar) ([]RepositoryItem, error) {
-	gqlClient, err := api.DefaultGraphQLClient()
-	if err != nil {
-		return nil, err
-	}
-	restClient, err := api.DefaultRESTClient()
-	if err != nil {
-		return nil, err
-	}
-
+func fetchSecurityAdvisories(gqlClient *api.GraphQLClient, restClient *api.RESTClient, owner string, opts *Options, pb *ProgressBar) ([]RepositoryItem, error) {
 	repoMap := map[string]RepositoryItem{}
 
 	allRepos, err := fetchDependabotAlerts(gqlClient, owner, opts, repoMap)
