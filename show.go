@@ -46,7 +46,7 @@ func fetchAdvisoryDetail(ghsaId string) (*SecurityAdvisoryDetail, error) {
 	}
 
 	var q advisoryQuery
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"ghsaId": graphql.String(ghsaId),
 	}
 
