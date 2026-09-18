@@ -3,7 +3,7 @@ module github.com/suer/gh-list-security-advisories
 go 1.25.0
 
 require (
-	github.com/cli/go-gh/v2 v2.16.0
+	github.com/cli/go-gh/v2 v2.16.1
 	github.com/cli/shurcooL-graphql v0.0.4
 	github.com/logrusorgru/aurora/v4 v4.0.0
 	github.com/mattn/go-isatty v0.0.24
