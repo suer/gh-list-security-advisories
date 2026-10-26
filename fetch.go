@@ -150,6 +150,10 @@ func isNotFound(err error) bool {
 }
 
 func addToRepoMap(repoMap map[string]RepositoryItem, item AdvisoryItem) {
+	item.RepositoryName = sanitizeLine(item.RepositoryName)
+	item.Identifier = sanitizeLine(item.Identifier)
+	item.Severity = sanitizeLine(item.Severity)
+	item.Summary = sanitizeLine(item.Summary)
 	ri := repoMap[item.RepositoryName]
 	ri.Name = item.RepositoryName
 	ri.AdvisoryItems = append(ri.AdvisoryItems, item)

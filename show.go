@@ -65,25 +65,25 @@ func showAdvisory(ghsaId string, opts *Options) error {
 	}
 
 	formatter := NewFormatter(opts.NoColor)
-	item := &AdvisoryItem{Identifier: ghsaId, Severity: advisory.Severity}
+	item := &AdvisoryItem{Identifier: sanitizeLine(ghsaId), Severity: sanitizeLine(advisory.Severity)}
 	fmt.Printf("GHSA ID: %s\n", formatter.FormatIdentifier(item))
 	fmt.Printf("Severity: %s\n", formatter.FormatSeverity(item))
-	fmt.Printf("Summary: %s\n", advisory.Summary)
-	fmt.Printf("Published: %s\n", advisory.PublishedAt)
-	fmt.Printf("Updated: %s\n", advisory.UpdatedAt)
-	fmt.Printf("URL: %s\n", advisory.Permalink)
+	fmt.Printf("Summary: %s\n", sanitizeLine(advisory.Summary))
+	fmt.Printf("Published: %s\n", sanitizeLine(advisory.PublishedAt))
+	fmt.Printf("Updated: %s\n", sanitizeLine(advisory.UpdatedAt))
+	fmt.Printf("URL: %s\n", sanitizeLine(advisory.Permalink))
 	fmt.Println()
 
 	if advisory.Description != "" {
 		fmt.Println("Description:")
-		fmt.Println(advisory.Description)
+		fmt.Println(sanitizeMultiline(advisory.Description))
 		fmt.Println()
 	}
 
 	if len(advisory.Identifiers) > 0 {
 		fmt.Println("Identifiers:")
 		for _, id := range advisory.Identifiers {
-			fmt.Printf("  %s: %s\n", id.Type, id.Value)
+			fmt.Printf("  %s: %s\n", sanitizeLine(id.Type), sanitizeLine(id.Value))
 		}
 		fmt.Println()
 	}
@@ -91,7 +91,7 @@ func showAdvisory(ghsaId string, opts *Options) error {
 	if len(advisory.References) > 0 {
 		fmt.Println("References:")
 		for _, ref := range advisory.References {
-			fmt.Printf("  - %s\n", ref.Url)
+			fmt.Printf("  - %s\n", sanitizeLine(ref.Url))
 		}
 		fmt.Println()
 	}
@@ -99,10 +99,10 @@ func showAdvisory(ghsaId string, opts *Options) error {
 	if len(advisory.Vulnerabilities.Nodes) > 0 {
 		fmt.Println("Affected Packages:")
 		for _, vuln := range advisory.Vulnerabilities.Nodes {
-			fmt.Printf("  - %s (%s)\n", vuln.Package.Name, vuln.Package.Ecosystem)
-			fmt.Printf("    Vulnerable: %s\n", vuln.VulnerableVersionRange)
+			fmt.Printf("  - %s (%s)\n", sanitizeLine(vuln.Package.Name), sanitizeLine(vuln.Package.Ecosystem))
+			fmt.Printf("    Vulnerable: %s\n", sanitizeLine(vuln.VulnerableVersionRange))
 			if vuln.FirstPatchedVersion.Identifier != "" {
-				fmt.Printf("    Patched: %s\n", vuln.FirstPatchedVersion.Identifier)
+				fmt.Printf("    Patched: %s\n", sanitizeLine(vuln.FirstPatchedVersion.Identifier))
 			}
 		}
 		fmt.Println()
