@@ -29,8 +29,25 @@ func rootCmd() *cobra.Command {
 		version = info.Main.Version
 	}
 	cmd := &cobra.Command{
-		Use:           "gh list-security-advisories <owner> [<owner>...]",
-		Short:         "List security advisories for one or more owners' repositories",
+		Use:   "gh list-security-advisories <owner> [<owner>...]",
+		Short: "List security advisories for one or more owners' repositories",
+		Example: `  # List advisories for an owner
+  gh list-security-advisories octocat
+
+  # Multiple owners
+  gh list-security-advisories octocat github
+
+  # Only CRITICAL and HIGH (repeatable)
+  gh list-security-advisories octocat -s CRITICAL -s HIGH
+
+  # Exclude repositories (repeatable)
+  gh list-security-advisories octocat -e test -e octocat/private-repo
+
+  # Also collect code scanning and secret scanning alerts
+  gh list-security-advisories octocat --codescanning --secretscanning
+
+  # Show details of a specific advisory
+  gh list-security-advisories --show GHSA-xxxx-xxxx-xxxx`,
 		Version:       version,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -49,10 +66,10 @@ func rootCmd() *cobra.Command {
 	}
 	cmd.SetVersionTemplate("{{.Version}}\n")
 
-	cmd.Flags().StringArrayVarP(&opts.Excludes, "exclude", "e", []string{}, "exclude repositories")
-	cmd.Flags().IntVarP(&opts.Limit, "limit", "l", 100, "Max number of vulnerability alerts to fetch per repository")
-	cmd.Flags().StringArrayVarP(&opts.Severities, "severity", "s", []string{}, "filter by severity (CRITICAL, HIGH, MODERATE, LOW)")
-	cmd.Flags().StringVar(&opts.Show, "show", "", "show details of a specific GHSA ID")
+	cmd.Flags().StringArrayVarP(&opts.Excludes, "exclude", "e", []string{}, "Exclude `repository`; repeatable")
+	cmd.Flags().IntVarP(&opts.Limit, "limit", "l", 100, "Max `number` of vulnerability alerts to fetch per repository")
+	cmd.Flags().StringArrayVarP(&opts.Severities, "severity", "s", []string{}, "Filter by `severity` (CRITICAL, HIGH, MODERATE, LOW); repeatable")
+	cmd.Flags().StringVar(&opts.Show, "show", "", "Show details of a specific `GHSA-ID`")
 	cmd.Flags().BoolVar(&opts.NoColor, "no-color", false, "disable color output")
 	cmd.Flags().BoolVarP(&opts.Verbose, "verbose", "v", false, "verbose output")
 	cmd.Flags().BoolVar(&opts.CodeScanning, "codescanning", false, "also collect code scanning alerts")
